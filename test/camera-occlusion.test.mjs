@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {WALLS} from '../public/js/world-layout.js';
 import {firstWallFraction,clampCameraToWalls,wallSeparates} from '../public/js/camera-occlusion.js';
-import {HouseScene} from '../public/js/scene.js';
+import {HouseScene,billboardAxes} from '../public/js/scene.js';
 
 const actor=(x,z,room='lounge')=>({id:'person-1',x,z,angle:0,room,floor:0,wing:'male',hidden:false});
 
@@ -56,4 +56,19 @@ test('first person hides own mesh and software occlusion hides players behind wa
  assert.equal(scene.actorVisible(me,0),false,'wall must hide a distant actor as a whole');
  scene.camera.eye=[-21,3,-5];me.z=-5;
  assert.equal(scene.actorVisible(me,0),true,'unobstructed doorway may show an actor');
+});
+
+test('compatibility spheres retain camera-facing width when viewed along X, Z or diagonally',()=>{
+ for(const [eye,target] of [
+  [[0,2,0],[10,2,0]], [[0,2,0],[0,2,10]], [[0,3,0],[8,2,8]],
+  [[0,10,0],[.1,0,.1]]
+ ]){
+  const {right,up,forward}=billboardAxes(eye,target);
+  const length=v=>Math.hypot(...v),dot=(a,b)=>a.reduce((sum,x,i)=>sum+x*b[i],0);
+  for(const v of [right,up,forward])assert.ok(Math.abs(length(v)-1)<1e-6,'unit camera axes');
+  assert.ok(Math.abs(dot(right,forward))<1e-6,'horizontal axis must be perpendicular to camera');
+  assert.ok(Math.abs(dot(up,forward))<1e-6,'vertical axis must be perpendicular to camera');
+ }
+ const side=billboardAxes([0,2,0],[10,2,0]);
+ assert.ok(Math.abs(side.right[2])>.99,'side camera sphere width must use world Z, not world X');
 });
