@@ -1,0 +1,35 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createGame} from '../server/game.mjs';
+import {createVoiceNoteRelay} from '../server/voice-notes.mjs';
+const makeClient=id=>({id,profileId:id,joined:true});
+test('short voice notes are delivered only to real housemates in the same room',()=>{
+ let time=100000;const relay=createVoiceNoteRelay({now:()=>time});
+ const g=createGame(),a=makeClient('a'),b=makeClient('b'),viewer=makeClient('viewer'),other=makeClient('other');
+ g.join(a,'housemate','Ada','female');g.join(b,'housemate','Bayo','male');g.join(other,'housemate','Ngozi','female');g.join(viewer,'viewer','Watching');
+ g.cast.find(x=>x.id===other.actorId).room='cinema';
+ const sent=[];const send=(recipient,data)=>sent.push({to:recipient.id,...data});
+ assert.equal(relay(a,{type:'voice-note-start',mime:'audio/webm'},g,[a,b,other,viewer],send),true);
+ const audio=Buffer.alloc(1000,1).toString('base64');
+ assert.equal(relay(a,{type:'voice-note-chunk',data:audio},g,[a,b,other,viewer],send),true);
+ assert.equal(relay(a,{type:'voice-note-end',seconds:1.5},g,[a,b,other,viewer],send),true);
+ assert.deepEqual(sent.filter(m=>m.type==='voice-note').map(x=>x.to).sort(),['a','b']);
+ assert.equal(g.snapshot('housemate',a).personalMetrics.voiceNotes,1);
+ assert.ok(sent.every(m=>m.to!=='viewer'||m.type!=='voice-note'));
+});
+test('voice notes reject viewers, oversize messages and room changes',()=>{
+ let time=100000;const relay=createVoiceNoteRelay({now:()=>time});
+ const g=createGame(),a=makeClient('a'),v=makeClient('v');
+ g.join(a,'housemate','Ada','female');g.join(v,'viewer','Viewer');
+ const sent=[],send=(c,data)=>sent.push(data);
+ relay(v,{type:'voice-note-start',mime:'audio/webm'},g,[a,v],send);
+ assert.equal(sent.at(-1).ok,false);
+ relay(a,{type:'voice-note-start',mime:'audio/webm'},g,[a,v],send);
+ relay(a,{type:'voice-note-chunk',data:'a'.repeat(4000)},g,[a,v],send);
+ assert.equal(sent.at(-1).ok,false);
+ relay(a,{type:'voice-note-start',mime:'audio/webm'},g,[a,v],send);
+ g.cast[0].room='cinema';
+ relay(a,{type:'voice-note-chunk',data:Buffer.alloc(600,1).toString('base64')},g,[a,v],send);
+ assert.equal(sent.at(-1).ok,false);
+ assert.equal(g.snapshot('housemate',a).personalMetrics.voiceNotes,0);
+});
