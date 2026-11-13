@@ -496,7 +496,7 @@ function addCharacter(m,a,items,time,players=[]){
  const working=['cooking','cleaning','washing','watering','speaking','singing','styling','showering','bathing','drinking','gaming'].includes(actionPose);
  const taskWave=working?Math.sin(time*(actionPose==='gaming'?8:4.1))*.18:0;
 
- const dancing=a.emote==='dance'||socialKind==='dance'||actionPosedancing/dance|freestyle|runway|skit|viral|party/.test(activity);
+ const dancing=a.emote==='dance'||socialKind==='dance'||actionPose==='dancing'||/dance|freestyle|runway|skit|viral|party/.test(activity);
  const training=['exercising','stretching','swimming','surfing','playing'].includes(actionPose)||/workout|hiit|train|swim|lap/.test(activity);
  const sitting=['sitting','watching','cuddling','eating','gaming','relaxing','meditating'].includes(a.pose)||/sleep|movie|watch|chess|relax|spa|self-care|tea party/.test(activity);
  const lying=['lying','sleeping'].includes(a.pose);
