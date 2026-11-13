@@ -33,7 +33,7 @@
 /* The information panel and roster are drawers, never simultaneous permanent overlays. */
 .drawer-backdrop{position:absolute;inset:0;background:#08242c79;z-index:11;backdrop-filter:blur(2px)}
 .glass-panel{background:#142e39f5;color:#fff6e8;border:1px solid var(--panel-edge);box-shadow:0 18px 52px #08242e76;backdrop-filter:blur(22px)}
-.left-panel,.right-panel{position:absolute;z-index:12;top:86px;bottom:18px;right:18px;left:auto;width:min(375px,calc(100vw - 36px));max-height:calc(100dvh - 104px);border-radius:21px;padding:20px;display:flex;flex-direction:column;opacity:0;visibility:hidden;pointer-events:none;transform:translateX(24px);transition:opacity .18s,transform .18s,visibility .18s}
+.left-panel,.right-panel{position:absolute;z-index:12;top:86px;bottom:18px;right:18px;left:auto;width:min(375px,calc(100vw - 36px));max-height:calc(100dvh - 104px);border-radius:21px;padding:20px;display:flex;flex-direction:column;opacity:0;visibility:hidden;pointer-events:none;transform:translateX(24px);transition:opacity .18s,transform .18s}
 .left-panel.is-open,.right-panel.is-open{opacity:1;visibility:visible;pointer-events:auto;transform:translateX(0)}
 .drawer-title{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px}.drawer-title small{color:#f1c087;letter-spacing:.13em;font-size:10px;font-weight:850}
 .drawer-title h2{font-size:26px;line-height:1.1;margin:6px 0 0;letter-spacing:-.04em;color:#fff5e7}
