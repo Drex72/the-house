@@ -21,6 +21,10 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       - name: Verify browser paths and render screenshots
         run: python test/browser-smoke.py
+      - name: Check furniture pointer interactions
+        run: python test/browser-objects.py
+      - name: Check touch furniture interactions
+        run: python test/browser-objects-touch.py
       - name: Make desktop and mobile review captures accessible
         if: always()
         uses: actions/upload-artifact@v4
