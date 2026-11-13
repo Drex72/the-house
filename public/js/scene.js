@@ -105,10 +105,31 @@ function buildWorld(floor=0){
  const cyl=(x,y,z,r,h,c,segments=22,top)=>g.cylinder(x,y+Y,z,r,h,c,segments,top);
  const ball=(x,y,z,r,c,seg=18,rings=12,scale=[1,1,1])=>g.sphere(x,y+Y,z,r,c,seg,rings,scale);
  const seat=(x,z,c='#d4773e',rotate=false)=>{
-  box(x,.50,z,4.3,.64,1.38,c,rotate?PI/2:0);
-  box(x,.96,z,4.15,.33,1.28,'#ed9768',rotate?PI/2:0);
-  box(x,1.23,z-.45,4.17,.74,.42,'#d66a35',rotate?PI/2:0);
-  for(const off of [-1.35,0,1.35])ball(x+off,1.09,z+.22,.44,off===0?'#fee7af':'#ca97bc',14,9,[1,.39,.8]);
+  // A consistent local transform keeps all sofa details aligned when rotated.
+  const yaw=rotate?PI/2:0,at=(dx,dz)=>rotate?[x+dz,z-dx]:[x+dx,z+dz];
+  box(x,.50,z,4.3,.64,1.38,c,yaw);
+  box(x,.96,z,4.15,.33,1.28,'#df8556',yaw);
+  const back=at(0,-.45);box(back[0],1.23,back[1],4.17,.74,.42,'#c76b43',yaw);
+  for(const off of [-1.35,0,1.35]){
+   const q=at(off,.22);
+   ball(q[0],1.09,q[1],.44,off===0?'#fee1aa':'#a777a7',14,9,[1,.39,.8]);
+  }
+  // Rolled arms, piping, three individual seat cushions and grounded feet.
+  for(const side of [-1,1]){
+   const arm=at(side*2.03,-.01);
+   box(arm[0],.90,arm[1],.35,.57,1.44,'#ba603e',yaw);
+   box(arm[0],1.18,arm[1],.40,.14,1.46,'#eaa778',yaw);
+   for(const dz of [-.46,.46]){
+    const foot=at(side*1.72,dz);
+    box(foot[0],.20,foot[1],.16,.21,.18,'#52443e');
+   }
+  }
+  for(const off of [-.70,.70]){
+   const seam=at(off,.20);
+   box(seam[0],1.135,seam[1],.023,.010,.83,'#e6a078',yaw);
+  }
+  const throwPillow=at(-1.53,-.10);
+  box(throwPillow[0],1.30,throwPillow[1],.54,.43,.18,'#f3d1b2',yaw+.15);
  };
  const palm=(x,z,scale=1)=>{
   cyl(x,1.58*scale,z,.22*scale,3.0*scale,'#876246',13);
@@ -201,7 +222,34 @@ function buildWorld(floor=0){
   seat(-11,-9.1);seat(-4.4,-8.7,'#de6937',true);
   cyl(-8,.45,-6.9,1.45,.40,'#503550',24);cyl(-8,.70,-6.9,1.15,.08,'#694d65',24);
   ball(-8,.88,-6.9,.37,'#e4a853',14,8,[1,.42,.8]);
+  // A supported coffee table: the previous floating tabletop read as a flat disc.
+  for(const dx of [-.87,.87])for(const dz of [-.57,.57]){
+   box(-8+dx,.24,-6.9+dz,.11,.31,.11,'#493b42');
+  }
+  cyl(-8,.31,-6.9,.81,.07,'#684c61',20);
+  box(-8,.91,-6.9,.43,.08,.32,'#f0d8b5'); // folded book
+  box(-7.25,.83,-7.38,.27,.06,.16,'#d7b77c'); // handset
+  // Framed focal wall and low media console, all inside the existing room footprint.
+  box(-8,2.22,-11.43,6.8,2.85,.12,'#673f71');
   box(-8,2.22,-11.33,6.3,2.4,.08,'#653283');
+  box(-8,.68,-11.00,6.1,.36,.49,'#624348');
+  box(-8,.90,-10.98,6.15,.07,.53,'#d6af7c');
+  for(const dx of [-2.72,-1.36,0,1.36,2.72]){
+   box(-8+dx,.66,-10.72,.028,.28,.025,'#d5b594');
+  }
+  // Tall fluted feature-panel wings bring scale and material contrast to the lounge.
+  for(const side of [-1,1]){
+   for(let i=0;i<4;i++){
+    const xx=-8+side*(3.82+i*.24);
+    box(xx,2.24,-11.36,.12,2.78,.10,i%2?'#bb7c58':'#d39b65');
+   }
+  }
+  // Pendant rings and fixed-world lighting forms, not camera-following lights.
+  for(const xx of [-12.25,-3.75]){
+   box(xx,3.57,-6.60,1.02,.10,1.02,'#503c48');
+   box(xx,3.49,-6.60,.74,.035,.74,'#ffdfac');
+   box(xx,3.74,-6.60,.045,.45,.045,'#705b60');
+  }
   for(let i=0;i<6;i++)box(-10.25+i*.9,2.2,-11.22,.16,1.0+(i%3)*.28,.04,i%2?'#ed973e':'#fec784');
   plant(-14,-2.7);plant(-1.7,-2.7);
   // Kitchen: PBR-like depth from layered cabinet fronts and warm metallic trim.
