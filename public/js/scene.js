@@ -87,18 +87,8 @@ class Mesh {
 }
 import {ROOMS,WALLS,FURNITURE,COLS,ROWS,ROOM_BY_ID,FLOOR_HEIGHT,canStand,roomAt,advanceActor,INTERACTABLES,OBJECT_BY_ID} from './world-layout.js';
 import {advanceGait,gestureProgress} from './motion.js';
-/** Camera only collides with structural walls, not small furniture or players.
- * Otherwise each chair produces a sudden camera zoom as the player passes it. */
-function cameraClear(x,z,floor,roomId){
- if(roomAt(x,z,floor)?.id!==roomId)return false;
- for(const wall of WALLS){
-  if(wall.floor!==floor)continue;
-  const cx=Math.max(wall.x-wall.w/2,Math.min(x,wall.x+wall.w/2));
-  const cz=Math.max(wall.z-wall.d/2,Math.min(z,wall.z+wall.d/2));
-  if(Math.hypot(x-cx,z-cz)<.24)return false;
- }
- return true;
-}
+import {clampCameraToWalls,wallSeparates} from './camera-occlusion.js';
+// The follow camera uses segment-to-wall tests instead of endpoint checks.
 function buildWorld(floor=0){
  const g=new Mesh(),Y=floor*FLOOR_HEIGHT;
  const box=(x,y,z,w,h,d,c,rot=0)=>g.box(x,y+Y,z,w,h,d,c,rot);
@@ -790,27 +780,30 @@ void main(){
   floor=floor||0;this.viewFloor=floor;
   const base=floor*FLOOR_HEIGHT;
   let eye,to;
+  this.cameraHidesTarget=this.cameraMode==='firstperson';
   if(isPlayer&&target){
-   // Camera direction is player-controlled, not reset by each movement keypress.
+   // Rotate the view without changing the character's walking direction.
    const yaw=this.heading+this.orbit;
    if(this.cameraMode==='firstperson'){
     eye=[a.x,base+1.89,a.z];to=[a.x+Math.sin(yaw)*7,base+1.84,a.z+Math.cos(yaw)*7];
    }else if(this.cameraMode==='topdown'){
     eye=[a.x+2,base+13*this.zoom,a.z+1.8];to=[a.x,base+.8,a.z];
    }else{
-    // A phone's narrow aspect ratio needs more context around the avatar;
-    // preserve the existing walking gait and orientation as camera-only work.
     const phoneFollow=this.width<650&&this.cameraMode==='follow';
     const d=(this.cameraMode==='shoulder'?3.6:this.cameraMode==='orbit'?5.4:5.5)*(phoneFollow?1.22:1)*this.zoom;
     const sx=this.cameraMode==='shoulder'?.95:phoneFollow?.38:.55;
-    let dist=d;
-    while(dist>1.25){const ex=a.x-Math.sin(yaw)*dist+Math.cos(yaw)*sx,ez=a.z-Math.cos(yaw)*dist-Math.sin(yaw)*sx;
-     if(cameraClear(ex,ez,floor,a.room))break;
-     dist-=.32;
-    }
-    eye=[a.x-Math.sin(yaw)*dist+Math.cos(yaw)*sx,base+(phoneFollow?3.55:3.25)+(this.cameraMode==='orbit'?this.pitch:0),a.z-Math.cos(yaw)*dist-Math.sin(yaw)*sx];
+    const desired={x:a.x-Math.sin(yaw)*d+Math.cos(yaw)*sx,
+                   z:a.z-Math.cos(yaw)*d-Math.sin(yaw)*sx};
+    // The entire eye-to-player segment must stay clear. The old code only
+    // checked the endpoint and could put an opaque wall between both.
+    const visible=clampCameraToWalls(a,desired,WALLS,floor);
+    const clearance=clamp((visible.distance-1.25)/.95,0,1);
+    eye=[visible.x,base+2.0+1.25*clearance+(this.cameraMode==='orbit'?clamp(this.pitch,-.35,.75):0),visible.z];
     const lookAhead=phoneFollow?1.80:1.15;
     to=[a.x+Math.sin(yaw)*lookAhead,base+1.25,a.z+Math.cos(yaw)*lookAhead];
+    // At a wall, temporarily use a near-eye camera rather than drawing the
+    // avatar as disjoint shapes through opaque geometry.
+    this.cameraHidesTarget=visible.distance<1.85;
    }
   }else if(this.cameraMode==='upper'||this.cameraMode==='lower'){
    eye=[36*Math.sin(.55+this.orbit),base+57*this.zoom,43*Math.cos(.55+this.orbit)+(floor===0?7:-12)];
@@ -829,14 +822,31 @@ void main(){
    this.camera.target=this.camera.target.map((v,i)=>mix(v,to[i],alpha));
    if(this.cameraSnap&&(!isPlayer||target))this.cameraSnap=false;
   }
+  // Smoothing between two clear eye targets can cross a wall. Correct
+  // the interpolated position, not just the intended camera destination.
+  if(isPlayer&&target&&!['firstperson','topdown'].includes(this.cameraMode)){
+   const actual=clampCameraToWalls(target,{x:this.camera.eye[0],z:this.camera.eye[2]},WALLS,floor);
+   if(actual.blocked){this.camera.eye[0]=actual.x;this.camera.eye[2]=actual.z;}
+   if(Math.hypot(this.camera.eye[0]-target.x,this.camera.eye[2]-target.z)<1.85)
+    this.cameraHidesTarget=true;
+  }
   this.lastCameraTime=time;
   this.view=lookAt(this.camera.eye,this.camera.target);
   this.proj=['upper','lower','topdown'].includes(this.cameraMode)?orthographic((this.cameraMode==='topdown'?30:104)*this.zoom,this.width/this.height,.1,260):perspective(this.cameraMode==='firstperson'?1.12:this.cameraMode==='room'?1.04:this.width<650?1.30:1.08,this.width/this.height,.1,260);
  }
+ actorVisible(actor,floor){
+  if(actor.floor!==floor||actor.hidden)return false;
+  if(actor.id===this.targetActor&&this.cameraHidesTarget)return false;
+  // Canvas2D has no depth buffer. Do not render dismembered silhouettes
+  // through architectural walls; overhead views remain unrestricted.
+  if(['follow','shoulder','orbit','firstperson','room','director'].includes(this.cameraMode)
+     &&wallSeparates(this.camera.eye,actor,WALLS,floor))return false;
+  return true;
+ }
  frame(time){if(!this.available)return;this.resize();this.animateActors(performance.now());this.cameraFor(time);
   if(!this.gl){this.fallbackFrame(time);return;}const gl=this.gl;
   const floor=this.viewFloor;
-  let mesh=new Mesh();addDeviceVisuals(mesh,this.devices,this.roomLights,floor,time,this.selectedObject);for(const a of this.actors.filter(a=>a.floor===floor&&!a.hidden)){
+  let mesh=new Mesh();addDeviceVisuals(mesh,this.devices,this.roomLights,floor,time,this.selectedObject);for(const a of this.actors.filter(a=>this.actorVisible(a,floor))){
     const piece=new Mesh();addCharacter(piece,a,this.items,time,this.actors);
     const water=a.room==='pool'&&Math.abs(a.x+24)<5&&Math.abs(a.z-23)<3.6?-.55:0;const offset=(a.floor||0)*FLOOR_HEIGHT+water;
     for(let i=1;i<piece.data.length;i+=9)piece.data[i]+=offset;
@@ -858,7 +868,7 @@ void main(){
   if(performance.now()-this.lastFallback<66)return;
   const ctx=this.ctx,w=this.canvas.width,h=this.canvas.height;
   this.lastFallback=performance.now();
-  const dynamic=new Mesh();addDeviceVisuals(dynamic,this.devices,this.roomLights,this.viewFloor,time,this.selectedObject);for(const a of this.actors.filter(a=>a.floor===this.viewFloor&&!a.hidden)){const part=new Mesh();addCharacter(part,a,this.items,time,this.actors);for(const shape of part.shapes)shape.y+=(a.floor||0)*FLOOR_HEIGHT+(a.room==='pool'&&Math.abs(a.x+24)<5&&Math.abs(a.z-23)<3.6?-.55:0);dynamic.shapes.push(...part.shapes);}
+  const dynamic=new Mesh();addDeviceVisuals(dynamic,this.devices,this.roomLights,this.viewFloor,time,this.selectedObject);for(const a of this.actors.filter(a=>this.actorVisible(a,this.viewFloor))){const part=new Mesh();addCharacter(part,a,this.items,time,this.actors);for(const shape of part.shapes)shape.y+=(a.floor||0)*FLOOR_HEIGHT+(a.room==='pool'&&Math.abs(a.x+24)<5&&Math.abs(a.z-23)<3.6?-.55:0);dynamic.shapes.push(...part.shapes);}
   const floor=this.viewFloor;const shapes=[...this.staticCpu[floor],...(['room','follow','firstperson','orbit','shoulder','director'].includes(this.cameraMode)?this.roofCpu[floor]:[]),...(['lower','upper','topdown'].includes(this.cameraMode)?this.privacyCpu[floor]:[]),...dynamic.shapes];
   const eye=this.camera.eye;
   const forward=norm(sub(this.camera.target,eye));
