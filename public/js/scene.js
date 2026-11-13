@@ -490,7 +490,7 @@ function buildCeilings(floor=0){
 }
 /** Lightweight real-time reactions to the server-authoritative appliances.
  * Uses the same dynamic mesh for WebGL2 and 2D compatibility mode. */
-function addDeviceVisuals(mesh,devices,roomLights,floor,time,selectedId){
+function addDeviceVisuals(mesh,devices,roomLights,floor,time,selectedId,hoveredId=null){
  for(const d of Object.values(devices||{})){
   const room=ROOM_BY_ID[d.room];if(!room||room.floor!==floor)continue;
   const y=floor*FLOOR_HEIGHT;
@@ -515,14 +515,16 @@ function addDeviceVisuals(mesh,devices,roomLights,floor,time,selectedId){
   const on=roomLights?.[o.room]!==false;
   mesh.sphere(o.x,2.65+floor*FLOOR_HEIGHT,o.z,.28,on?'#fff1bd':'#695e67',12,8,[1,.65,1]);
  }
- if(selectedId){
-  const o=OBJECT_BY_ID[selectedId];
+ // Hover affordance is quieter than an active selection and appears only on pointer-capable devices.
+ const indicatorId=selectedId||hoveredId;
+ if(indicatorId){
+  const o=OBJECT_BY_ID[indicatorId];
   if(o&&o.floor===floor){
    const r=Math.max(.63,Math.min(2.5,Math.max(o.w,o.d)/2));
-   const pulse=1+.05*Math.sin(time*4);
+   const pulse=1+.05*Math.sin(time*4),isSelected=indicatorId===selectedId;
    // Four understated corners instead of a huge on-screen highlight or persistent HUD.
    for(const angle of [0,PI/2,PI,3*PI/2]){
-    mesh.sphere(o.x+Math.cos(angle)*r*pulse,.20+floor*FLOOR_HEIGHT,o.z+Math.sin(angle)*r*pulse,.09,'#f0d4a0',8,4,[1,.32,1]);
+    mesh.sphere(o.x+Math.cos(angle)*r*pulse,.20+floor*FLOOR_HEIGHT,o.z+Math.sin(angle)*r*pulse,isSelected?.09:.066,isSelected?'#f0d4a0':'#d5edd8',8,4,[1,.32,1]);
    }
   }
  }
@@ -653,7 +655,7 @@ export class HouseScene{
    this.ctx=canvas.getContext('2d');this.available=Boolean(this.ctx);
    this.staticCpu=[buildWorld(0).shapes,buildWorld(1).shapes];this.roofCpu=[buildCeilings(0).shapes,buildCeilings(1).shapes];this.privacyCpu=[buildPrivacyRoofs(0).shapes,buildPrivacyRoofs(1).shapes];this.camera={eye:[-3,2.85,.3],target:[-8,1.4,-7]};
    this.view=lookAt(this.camera.eye,this.camera.target);this.proj=perspective(.9,1,.1,330);
-   this.cameraMode='lower';this.targetActor=null;this.room='lounge';this.viewFloor=0;this.zoom=1;this.orbit=0;this.heading=Math.PI;this.pitch=.42;this.cameraSnap=true;this.lastCameraTime=0;this.items=[];this.devices={};this.roomLights={};this.selectedObject=null;this.actors=[];this.actorTracks=new Map();this.gaitStates=new Map();this.localActorId=null;this.fps=0;this.frames=0;this.lastFps=performance.now();this.lastFallback=0;this.width=1;this.height=1;
+   this.cameraMode='lower';this.targetActor=null;this.room='lounge';this.viewFloor=0;this.zoom=1;this.orbit=0;this.heading=Math.PI;this.pitch=.42;this.cameraSnap=true;this.lastCameraTime=0;this.items=[];this.devices={};this.roomLights={};this.selectedObject=null;this.hoveredObject=null;this.actors=[];this.actorTracks=new Map();this.gaitStates=new Map();this.localActorId=null;this.fps=0;this.frames=0;this.lastFps=performance.now();this.lastFallback=0;this.width=1;this.height=1;
    return;
   }
   const gl=this.gl;this.available=true;
@@ -710,7 +712,7 @@ void main(){
   gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.disable(gl.CULL_FACE);
   this.camera={eye:[-3,2.85,.3],target:[-8,1.4,-7]};this.view=lookAt(this.camera.eye,this.camera.target);this.proj=perspective(.9,1,.1,330);
   this.cameraMode='lower';this.targetActor=null;this.room='lounge';this.viewFloor=0;this.zoom=1;this.orbit=0;this.heading=Math.PI;this.pitch=.42;this.cameraSnap=true;this.lastCameraTime=0;
-  this.items=[];this.devices={};this.roomLights={};this.selectedObject=null;this.actors=[];this.actorTracks=new Map();this.gaitStates=new Map();this.localActorId=null;this.fps=0;this.frames=0;this.lastFps=performance.now();this.width=1;this.height=1;
+  this.items=[];this.devices={};this.roomLights={};this.selectedObject=null;this.hoveredObject=null;this.actors=[];this.actorTracks=new Map();this.gaitStates=new Map();this.localActorId=null;this.fps=0;this.frames=0;this.lastFps=performance.now();this.width=1;this.height=1;
  }
  toBuffer(mesh,usage){const gl=this.gl,vao=gl.createVertexArray(),buffer=gl.createBuffer();gl.bindVertexArray(vao);gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
   gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(mesh.data),usage);
@@ -808,7 +810,9 @@ void main(){
      if(cameraClear(ex,ez,floor,a.room))break;
      dist-=.32;
     }
-    eye=[a.x-Math.sin(yaw)*dist+Math.cos(yaw)*sx,base+(phoneFollow?3.55:3.25)+(this.cameraMode==='orbit'?this.pitch:0),a.z-Math.cos(yaw)*dist-Math.sin(yaw)*sx];
+    // Restricted vertical orbit preserves ceiling clearance and stable composition.
+    const cameraLift=this.cameraMode==='orbit'?this.pitch:this.pitch*.45;
+    eye=[a.x-Math.sin(yaw)*dist+Math.cos(yaw)*sx,base+(phoneFollow?3.55:3.25)+clamp(cameraLift,-.2,.75),a.z-Math.cos(yaw)*dist-Math.sin(yaw)*sx];
     const lookAhead=phoneFollow?1.80:1.15;
     to=[a.x+Math.sin(yaw)*lookAhead,base+1.25,a.z+Math.cos(yaw)*lookAhead];
    }
@@ -836,7 +840,7 @@ void main(){
  frame(time){if(!this.available)return;this.resize();this.animateActors(performance.now());this.cameraFor(time);
   if(!this.gl){this.fallbackFrame(time);return;}const gl=this.gl;
   const floor=this.viewFloor;
-  let mesh=new Mesh();addDeviceVisuals(mesh,this.devices,this.roomLights,floor,time,this.selectedObject);for(const a of this.actors.filter(a=>a.floor===floor&&!a.hidden)){
+  let mesh=new Mesh();addDeviceVisuals(mesh,this.devices,this.roomLights,floor,time,this.selectedObject,this.hoveredObject);for(const a of this.actors.filter(a=>a.floor===floor&&!a.hidden)){
     const piece=new Mesh();addCharacter(piece,a,this.items,time,this.actors);
     const water=a.room==='pool'&&Math.abs(a.x+24)<5&&Math.abs(a.z-23)<3.6?-.55:0;const offset=(a.floor||0)*FLOOR_HEIGHT+water;
     for(let i=1;i<piece.data.length;i+=9)piece.data[i]+=offset;
@@ -858,7 +862,7 @@ void main(){
   if(performance.now()-this.lastFallback<66)return;
   const ctx=this.ctx,w=this.canvas.width,h=this.canvas.height;
   this.lastFallback=performance.now();
-  const dynamic=new Mesh();addDeviceVisuals(dynamic,this.devices,this.roomLights,this.viewFloor,time,this.selectedObject);for(const a of this.actors.filter(a=>a.floor===this.viewFloor&&!a.hidden)){const part=new Mesh();addCharacter(part,a,this.items,time,this.actors);for(const shape of part.shapes)shape.y+=(a.floor||0)*FLOOR_HEIGHT+(a.room==='pool'&&Math.abs(a.x+24)<5&&Math.abs(a.z-23)<3.6?-.55:0);dynamic.shapes.push(...part.shapes);}
+  const dynamic=new Mesh();addDeviceVisuals(dynamic,this.devices,this.roomLights,this.viewFloor,time,this.selectedObject,this.hoveredObject);for(const a of this.actors.filter(a=>a.floor===this.viewFloor&&!a.hidden)){const part=new Mesh();addCharacter(part,a,this.items,time,this.actors);for(const shape of part.shapes)shape.y+=(a.floor||0)*FLOOR_HEIGHT+(a.room==='pool'&&Math.abs(a.x+24)<5&&Math.abs(a.z-23)<3.6?-.55:0);dynamic.shapes.push(...part.shapes);}
   const floor=this.viewFloor;const shapes=[...this.staticCpu[floor],...(['room','follow','firstperson','orbit','shoulder','director'].includes(this.cameraMode)?this.roofCpu[floor]:[]),...(['lower','upper','topdown'].includes(this.cameraMode)?this.privacyCpu[floor]:[]),...dynamic.shapes];
   const eye=this.camera.eye;
   const forward=norm(sub(this.camera.target,eye));
