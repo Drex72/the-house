@@ -840,7 +840,7 @@ void main(){
   // Canvas2D has no depth buffer. Do not render dismembered silhouettes
   // through architectural walls; overhead views remain unrestricted.
   if(['follow','shoulder','orbit','firstperson','room','director'].includes(this.cameraMode)
-     &&wallSeparates(this.camera.eye,actor,WALLS,floor))return false;
+     &&wallSeparates({x:this.camera.eye[0],z:this.camera.eye[2]},actor,WALLS,floor))return false;
   return true;
  }
  frame(time){if(!this.available)return;this.resize();this.animateActors(performance.now());this.cameraFor(time);
