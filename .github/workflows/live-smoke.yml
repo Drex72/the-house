@@ -62,6 +62,15 @@ jobs:
           const viewer=await join('viewer');
           assert.ok(housemate.seen.some(x=>x.type==='welcome'&&x.role==='housemate'),'First real player should receive housemate welcome');
           assert.ok(viewer.seen.some(x=>x.type==='welcome'),'Viewer should receive welcome');
+          const actorId=housemate.seen.find(x=>x.type==='welcome')?.actorId;
+          assert.ok(actorId,'Housemate welcome must include player identity');
+          let viewerSawHousemate=false;
+          for(let i=0;i<24;i++) {
+            viewerSawHousemate=viewer.seen.some(x=>x.type==='snapshot'&&(x.cast||[]).some(p=>p.id===actorId));
+            if(viewerSawHousemate)break;
+            await new Promise(resolve=>setTimeout(resolve,250));
+          }
+          assert.ok(viewerSawHousemate,'Viewer must see joined housemate in the same live game');
           housemate.ws.close();viewer.ws.close();
           console.log('WebSocket housemate and viewer joined successfully');
           NODE
