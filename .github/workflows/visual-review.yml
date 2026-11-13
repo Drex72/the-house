@@ -1,7 +1,7 @@
 name: Visual review - housemate and viewer
 on:
   push:
-    branches: [feature/review-refine-visual-qa, fix/camera-wall-occlusion]
+    branches: [feature/review-refine-visual-qa, fix/camera-wall-occlusion, feature/contextual-hover-camera-qa]
   workflow_dispatch:
 permissions:
   contents: read
@@ -41,7 +41,7 @@ jobs:
           from pathlib import Path
           from PIL import Image
           import base64,io
-          for name in ['housemate-1180x740.png','housemate-390x844.png','compound-overview-1180x740.png','activities-390x844.png','clickable-sofa-1180x740.png','touch-object-390x844.png','camera-back-wall-1180x740.png','camera-open-doorway-1180x740.png','camera-solid-divider-1180x740.png']:
+          for name in ['housemate-1180x740.png','housemate-390x844.png','compound-overview-1180x740.png','activities-390x844.png','clickable-sofa-1180x740.png','touch-object-390x844.png','camera-back-wall-1180x740.png','camera-open-doorway-1180x740.png','camera-solid-divider-1180x740.png','hover-object-1180x740.png']:
               p=Path('artifacts')/name
               if not p.exists(): continue
               img=Image.open(p).convert('RGB')

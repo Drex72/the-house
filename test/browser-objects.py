@@ -31,6 +31,13 @@ with sync_playwright() as p:
   choice=next((o for o in visible if o['id']==('lounge-tv' if width<600 else 'lounge-sofa')),visible[0])
   center=choice['center']
   print('TARGET',width,choice)
+  # Hover is purely contextual; no new permanent UI or click target.
+  page.mouse.move(center[0],center[1])
+  page.wait_for_timeout(180)
+  assert page.locator('#object-hover-hint').is_visible(), 'mouse hover should identify interactive furniture'
+  assert choice['id']==page.evaluate('window.__houseScene.hoveredObject'), 'the highlighted object should match the 3D picking result'
+  assert page.locator('#object-hover-hint').inner_text().find('Click for actions')>=0
+  if width>600: page.screenshot(path=str(OUT/'hover-object-1180x740.png'))
   # Mouse/touch event must hit the actual canvas, not an invisible fake action button.
   page.mouse.click(center[0],center[1])
   page.wait_for_timeout(250)
@@ -57,6 +64,16 @@ with sync_playwright() as p:
   last=page.evaluate('window.__lastMessage')
   assert last['type'] in ('move','object-act'),f'Object selection did not initiate a real action: {last}'
   assert not errors, errors
-  print('PASS',width,'sofa tap, contextual choices and close button',flush=True)
+  # A vertical drag should adjust follow-camera elevation within a bounded range.
+  start_pitch=page.evaluate('window.__houseScene.pitch')
+  start_x,start_y=width*.7,height*.53
+  page.mouse.move(start_x,start_y)
+  page.mouse.down()
+  page.mouse.move(start_x,start_y+70,steps=5)
+  page.mouse.up()
+  new_pitch=page.evaluate('window.__houseScene.pitch')
+  assert -.35<=new_pitch<=.75 and new_pitch<start_pitch, f'camera tilt is not bounded/interactive: {start_pitch} => {new_pitch}'
+  assert not errors, errors
+  print('PASS',width,'furniture hover, contextual actions, close button and vertical camera drag',flush=True)
   page.close()
  browser.close()
