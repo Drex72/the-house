@@ -782,15 +782,19 @@ void main(){
    }else if(this.cameraMode==='topdown'){
     eye=[a.x+2,base+13*this.zoom,a.z+1.8];to=[a.x,base+.8,a.z];
    }else{
-    const d=(this.cameraMode==='shoulder'?3.6:this.cameraMode==='orbit'?5.4:5.5)*this.zoom;
-    const sx=this.cameraMode==='shoulder'?.95:.55;
+    // A phone's narrow aspect ratio needs more context around the avatar;
+    // preserve the existing walking gait and orientation as camera-only work.
+    const phoneFollow=this.width<650&&this.cameraMode==='follow';
+    const d=(this.cameraMode==='shoulder'?3.6:this.cameraMode==='orbit'?5.4:5.5)*(phoneFollow?1.22:1)*this.zoom;
+    const sx=this.cameraMode==='shoulder'?.95:phoneFollow?.38:.55;
     let dist=d;
     while(dist>1.25){const ex=a.x-Math.sin(yaw)*dist+Math.cos(yaw)*sx,ez=a.z-Math.cos(yaw)*dist-Math.sin(yaw)*sx;
      if(cameraClear(ex,ez,floor,a.room))break;
      dist-=.32;
     }
-    eye=[a.x-Math.sin(yaw)*dist+Math.cos(yaw)*sx,base+3.25+(this.cameraMode==='orbit'?this.pitch:0),a.z-Math.cos(yaw)*dist-Math.sin(yaw)*sx];
-    to=[a.x+Math.sin(yaw)*1.15,base+1.25,a.z+Math.cos(yaw)*1.15];
+    eye=[a.x-Math.sin(yaw)*dist+Math.cos(yaw)*sx,base+(phoneFollow?3.55:3.25)+(this.cameraMode==='orbit'?this.pitch:0),a.z-Math.cos(yaw)*dist-Math.sin(yaw)*sx];
+    const lookAhead=phoneFollow?1.80:1.15;
+    to=[a.x+Math.sin(yaw)*lookAhead,base+1.25,a.z+Math.cos(yaw)*lookAhead];
    }
   }else if(this.cameraMode==='upper'||this.cameraMode==='lower'){
    eye=[36*Math.sin(.55+this.orbit),base+57*this.zoom,43*Math.cos(.55+this.orbit)+(floor===0?7:-12)];
