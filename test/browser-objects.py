@@ -35,6 +35,9 @@ with sync_playwright() as p:
   page.mouse.click(center[0],center[1])
   page.wait_for_timeout(250)
   assert page.locator('#object-popover').is_visible(), 'furniture options did not open on tap'
+  if width>600:
+   bounds=page.locator('#object-popover').bounding_box()
+   assert bounds and (bounds['x']+bounds['width']<width*.43 or bounds['x']>width*.60), f'context panel obstructs center of desktop 3D view: {bounds}'
   expected='watch' if choice['id']=='lounge-tv' else 'sit'
   assert page.locator(f'[data-object-choice="{expected}"]').count()==1, f'{choice["id"]} missing {expected}'
   if choice['id']=='lounge-sofa': assert page.locator('[data-object-choice="lie"]').count()==1, 'sofa has no lie option'

@@ -8,6 +8,7 @@ import base64
 import json
 import re
 import subprocess
+import shutil
 from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -30,7 +31,8 @@ def make_document(simulate_gpu_error=False, debug=False):
     motion = uri((PUBLIC / 'js/motion.js').read_text())
     notes = uri((PUBLIC / 'js/voice-notes.js').read_text())
     social = uri((PUBLIC / 'js/social-ui.js').read_text())
-    stereostereoscene_source = ((PUBLIC / 'js/scene.js').read_text()
+    stereo = uri((PUBLIC / 'js/stereo.js').read_text())
+    scene_source = ((PUBLIC / 'js/scene.js').read_text()
         .replace("from './world-layout.js'", f"from '{layout}'")
         .replace("from './motion.js'", f"from '{motion}'"))
     if simulate_gpu_error:
@@ -86,7 +88,7 @@ window.WebSocket=FakeSocket;
     return html
 
 with sync_playwright() as p:
-    browser = p.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-webgl','--disable-web-security'])
+    browser = p.chromium.launch(executable_path=shutil.which('chromium') or p.chromium.executable_path,headless=True,args=['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-webgl','--disable-web-security'])
     for width,height,crash in [(1180,740,False),(390,844,False),(1180,740,True)]:
         page = browser.new_page(viewport={'width':width,'height':height},device_scale_factor=1)
         errors=[];logs=[]
@@ -100,6 +102,8 @@ with sync_playwright() as p:
         assert page.locator('#needs-hud').is_visible(), 'needs HUD hidden'
         assert page.locator('#needs-hud .need-row').count()==4, 'four needs required'
         assert not errors, f'uncaught errors: {errors}'
+        # Capture settled gameplay, after nonblocking compatibility notices fade out.
+        page.wait_for_timeout(2300)
         suffix=f'{width}x{height}'+('-recovery' if crash else '')
         page.screenshot(path=str(OUT / f'housemate-{suffix}.png'))
         page.locator('#interact-action').click()
@@ -112,8 +116,11 @@ with sync_playwright() as p:
         page.locator('#activity-panel').wait_for(state='visible',timeout=2000)
         assert page.locator('#activity-panel').is_visible()
         page.locator('#close-panel').click()
-        page.locator('#activity-panel').wait_for(state='hidden',timeout=2000)
-        assert not page.locator('#activity-panel').is_visible()
+        page.wait_for_timeout(300)
+        panel_state=page.locator('#activity-panel').evaluate('(e)=>({className:e.className,visibility:getComputedStyle(e).visibility,opacity:getComputedStyle(e).opacity})')
+        print('MENU AFTER CLOSE:',panel_state,flush=True)
+        page.wait_for_function("!document.getElementById('activity-panel').classList.contains('is-open')",timeout=4000)
+        assert panel_state['visibility']=='hidden',f'menu must be hidden after X: {panel_state}'
         if crash:
             assert any('Switching house renderer to compatibility mode' in v for k,v in logs), 'WebGL recovery was not invoked'
             assert page.locator('#world').evaluate("(c)=>c.getContext('2d')!==null"), '2D renderer not active after recovery'
