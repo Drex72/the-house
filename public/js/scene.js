@@ -868,7 +868,14 @@ void main(){
   if(performance.now()-this.lastFallback<66)return;
   const ctx=this.ctx,w=this.canvas.width,h=this.canvas.height;
   this.lastFallback=performance.now();
-  const dynamic=new Mesh();addDeviceVisuals(dynamic,this.devices,this.roomLights,this.viewFloor,time,this.selectedObject);for(const a of this.actors.filter(a=>this.actorVisible(a,this.viewFloor))){const part=new Mesh();addCharacter(part,a,this.items,time,this.actors);for(const shape of part.shapes)shape.y+=(a.floor||0)*FLOOR_HEIGHT+(a.room==='pool'&&Math.abs(a.x+24)<5&&Math.abs(a.z-23)<3.6?-.55:0);dynamic.shapes.push(...part.shapes);}
+  const dynamic=new Mesh();
+  addDeviceVisuals(dynamic,this.devices,this.roomLights,this.viewFloor,time,this.selectedObject);
+  const avatars=[];
+  for(const a of this.actors.filter(a=>this.actorVisible(a,this.viewFloor))){
+   const part=new Mesh();addCharacter(part,a,this.items,time,this.actors);
+   for(const shape of part.shapes)shape.y+=(a.floor||0)*FLOOR_HEIGHT+(a.room==='pool'&&Math.abs(a.x+24)<5&&Math.abs(a.z-23)<3.6?-.55:0);
+   avatars.push({actor:a,shapes:part.shapes});
+  }
   const floor=this.viewFloor;const shapes=[...this.staticCpu[floor],...(['room','follow','firstperson','orbit','shoulder','director'].includes(this.cameraMode)?this.roofCpu[floor]:[]),...(['lower','upper','topdown'].includes(this.cameraMode)?this.privacyCpu[floor]:[]),...dynamic.shapes];
   const eye=this.camera.eye;
   const forward=norm(sub(this.camera.target,eye));
@@ -885,7 +892,16 @@ void main(){
   const faceColor=(hex,k=1)=>`rgb(${color(hex,k).join(',')})`;
   const poly=(pts,col)=>{if(pts.some(p=>!p))return;ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(...pts[0]);for(let i=1;i<pts.length;i++)ctx.lineTo(...pts[i]);ctx.closePath();ctx.fill();};
   ctx.fillStyle='#a7dfe7';ctx.fillRect(0,0,w,h);
-  for(const s of shapes){
+  // Canvas2D has no per-pixel depth buffer. Sort the house separately, then
+  // composite each actor's *complete* authored pose in a dedicated layer.
+  // Interleaving individual limbs with large wall/sofa meshes produced the
+  // reported floating face and detached arms. Structural wall occlusion is
+  // handled before this pass by actorVisible().
+  const orderedAvatars=avatars.sort((a,b)=>
+   depthOf({x:b.actor.x,y:(b.actor.floor||0)*FLOOR_HEIGHT+1.2,z:b.actor.z})-
+   depthOf({x:a.actor.x,y:(a.actor.floor||0)*FLOOR_HEIGHT+1.2,z:a.actor.z}));
+  const renderShapes=[...shapes,...orderedAvatars.flatMap(group=>group.shapes)];
+  for(const s of renderShapes){
    if(s.type==='sphere'){
     const p=toScreen(s.x,s.y,s.z);const px=toScreen(s.x+s.r*s.scale[0],s.y,s.z),py=toScreen(s.x,s.y+s.r*s.scale[1],s.z);
     if(!p||!px||!py)continue;
