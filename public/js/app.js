@@ -423,22 +423,61 @@ setInterval(()=>{
  }else return;
  if(Math.hypot(dx,dz)>.06){const moved=scene.predictActor(state.actorId,dx,dz,.07);send('move',{dx,dz});if(autoRoute){routeFailures=moved?0:routeFailures+1;if(routeFailures>24){autoRoute=null;queuedAction=null;notify('Could not reach the furniture. Try moving closer.');}}}
 },70);
+function clearObjectHover(){
+ const tip=$('object-hover-hint');if(tip)tip.hidden=true;
+ scene.hoveredObject=null;el.world.style.cursor='';
+}
+function updateObjectHover(e){
+ const tip=$('object-hover-hint');
+ if(!tip||e.pointerType!=='mouse'||!state.joined||state.role!=='housemate'||pointerStart){
+  clearObjectHover();return;
+ }
+ const me=currentPlayer();
+ if(!me||me.floor!==scene.viewFloor){clearObjectHover();return;}
+ const rect=el.world.getBoundingClientRect(),mx=e.clientX-rect.left,my=e.clientY-rect.top;
+ // Real housemates retain first priority when their projected hit area overlaps furniture.
+ for(const actor of state.cast){
+  if(actor.hidden||actor.id===state.actorId||actor.floor!==scene.viewFloor)continue;
+  const projected=scene.project([actor.x,2.3+actor.floor*FLOOR_HEIGHT,actor.z]);
+  if(projected&&Math.hypot(projected[0]-mx,projected[1]-my)<43){clearObjectHover();return;}
+ }
+ const objects=state.objects.filter(o=>o.floor===me.floor&&o.room===me.room);
+ const object=scene.pickObject(mx,my,objects);
+ if(!object){clearObjectHover();return;}
+ scene.hoveredObject=object.id;
+ el.world.style.cursor='pointer';
+ if(tip.dataset.objectId!==object.id){tip.dataset.objectId=object.id;tip.textContent=object.label;
+  const assist=document.createElement('small');assist.textContent='Click for actions';tip.append(assist);
+ }
+ tip.style.left=`${Math.round(Math.min(innerWidth-92,Math.max(92,e.clientX)))}px`;
+ tip.style.top=`${Math.round(Math.max(95,e.clientY))}px`;
+ tip.hidden=false;
+}
 function installWorldPointerHandlers(canvas){
  canvas.addEventListener('pointerdown',e=>{
   if(e.button!==0&&e.pointerType==='mouse')return;
-  pointerStart={x:e.clientX,y:e.clientY,prevX:e.clientX,t:performance.now(),moved:false,pointerId:e.pointerId};
+  clearObjectHover();
+  pointerStart={x:e.clientX,y:e.clientY,prevX:e.clientX,prevY:e.clientY,t:performance.now(),moved:false,pointerId:e.pointerId};
   try{canvas.setPointerCapture(e.pointerId);}catch{}
  });
  canvas.addEventListener('pointermove',e=>{
-  if(!pointerStart||pointerStart.pointerId!==e.pointerId)return;
+  if(!pointerStart){
+   updateObjectHover(e);return;
+  }
+  if(pointerStart.pointerId!==e.pointerId)return;
   if(Math.hypot(e.clientX-pointerStart.x,e.clientY-pointerStart.y)>9)pointerStart.moved=true;
-  const dx=e.clientX-pointerStart.prevX;pointerStart.prevX=e.clientX;
-  if(pointerStart.moved&&Math.abs(dx)>0){scene.orbit-=dx*.0042;}
+  const dx=e.clientX-pointerStart.prevX,dy=e.clientY-pointerStart.prevY;
+  pointerStart.prevX=e.clientX;pointerStart.prevY=e.clientY;
+  if(pointerStart.moved){
+   if(Math.abs(dx)>0)scene.orbit-=dx*.0042;
+   if(Math.abs(dy)>0&&['follow','shoulder','orbit'].includes(state.camera))
+    scene.pitch=Math.max(-.35,Math.min(.75,scene.pitch-dy*.007));
+  }
  });
  canvas.addEventListener('pointerup',e=>{
   if(!pointerStart||pointerStart.pointerId!==e.pointerId)return;
   const tapped=!pointerStart.moved&&performance.now()-pointerStart.t<600;
-  pointerStart=null;if(!tapped||!state.joined)return;
+  pointerStart=null;clearObjectHover();if(!tapped||!state.joined)return;
   const rect=canvas.getBoundingClientRect(),mx=e.clientX-rect.left,my=e.clientY-rect.top;
   if(state.role==='housemate'){
    const me=currentPlayer();if(!me||me.floor!==scene.viewFloor)return;
@@ -461,7 +500,8 @@ function installWorldPointerHandlers(canvas){
   }
   if(best)chooseActor(best.id);
  });
- for(const kind of ['pointercancel','lostpointercapture'])canvas.addEventListener(kind,()=>{pointerStart=null;});
+ for(const kind of ['pointercancel','lostpointercapture'])canvas.addEventListener(kind,()=>{pointerStart=null;clearObjectHover();});
+ canvas.addEventListener('pointerleave',clearObjectHover);
  canvas.addEventListener('wheel',e=>{e.preventDefault();scene.zoom=Math.max(.58,Math.min(1.6,scene.zoom+(e.deltaY>0?.075:-.075)));},{passive:false});
 }
 installWorldPointerHandlers(el.world);
