@@ -53,7 +53,9 @@ with sync_playwright() as p:
    assert detail['hasGraphics'] and all(isinstance(v,(int,float)) for v in detail['eye'])
    print('CAMERA DETAIL',width,name,detail,flush=True)
    assert detail['actorVisible']==(not detail['hidden']),'no half-rendered character through wall'
-   if expect_near: assert detail['hidden'],'near-wall view should not draw a dismembered closeup'
+   if expect_near:
+    assert detail['hidden'],'near-wall view should not draw a dismembered closeup'
+    assert detail['eye'][1]>=3.40,f'emergency camera should rise above sofa backs: {detail}'
    if name=='open-doorway':
     assert detail['distance']>3.2,f'camera should pass through real door opening: {detail}'
     assert detail['actorVisible'],'player in a doorway must remain visible'
