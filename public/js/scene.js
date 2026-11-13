@@ -572,6 +572,8 @@ void main(){
   this.animateActors(now);
  }
  animateActors(now){
+  // Compatibility paths and geometry tests can instantiate without the constructor.
+  if(!this.gaitStates)this.gaitStates=new Map();
   this.actors=[...this.actorTracks.values()].map(track=>{
    const t=clamp((now-track.receivedAt)/155,0,1),difference=Math.atan2(Math.sin(track.toAngle-track.fromAngle),Math.cos(track.toAngle-track.fromAngle));
    const actor={...track,x:mix(track.fromX,track.toX,t),z:mix(track.fromZ,track.toZ,t),angle:track.fromAngle+difference*t};
