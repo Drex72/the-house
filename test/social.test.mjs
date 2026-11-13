@@ -1,0 +1,75 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createGame} from '../server/game.mjs';
+import {advanceGait,gestureProgress} from '../public/js/motion.js';
+
+const client=id=>({id,profileId:id});
+test('walking blends smoothly rather than snapping between frames',()=>{
+ const start=advanceGait({}, {x:0,z:0,walking:false},1000);
+ const mid=advanceGait(start,{x:.08,z:0,walking:true},1060);
+ assert.ok(mid.weight>0&&mid.weight<1);
+ assert.ok(mid.phase>start.phase);
+ const stopping=advanceGait(mid,{x:.08,z:0,walking:false},1120);
+ assert.ok(stopping.weight<mid.weight&&stopping.weight>0);
+ assert.equal(gestureProgress({startedAt:1000,until:3000},2000),1);
+ assert.equal(gestureProgress({startedAt:1000,until:3000},3000),0);
+});
+test('room chat displays only to connected housemates in their own room',()=>{
+ const g=createGame(),a=client('alice'),b=client('bayo'),v=client('viewer');
+ g.join(a,'housemate','Alice','female');g.join(b,'housemate','Bayo','male');g.join(v,'viewer','Audience');
+ g.process(a,{type:'room-chat',text:'Welcome to the island!'});
+ const aView=g.snapshot('housemate',a),bView=g.snapshot('housemate',b),viewer=g.snapshot('viewer',v);
+ assert.equal(aView.roomMessages.length,1);
+ assert.equal(bView.roomMessages.length,1);
+ assert.deepEqual(viewer.roomMessages,[]);
+ assert.equal(aView.cast.find(p=>p.id===a.actorId).speech.text,'Welcome to the island!');
+ assert.equal(aView.personalMetrics.roomMessages,1);
+ assert.equal(viewer.personalMetrics,null);
+ g.cast.find(p=>p.id===b.actorId).room='cinema';
+ assert.deepEqual(g.snapshot('housemate',b).roomMessages,[]);
+});
+test('individual progress statistics are private to the player',()=>{
+ const g=createGame(),a=client('a'),b=client('b');
+ g.join(a,'housemate','Ada','female');g.join(b,'housemate','Bayo','male');
+ const before=g.snapshot('housemate',a).personalMetrics;
+ assert.equal(before.distanceWalked,0);
+ g.process(a,{type:'move',dx:1,dz:0});
+ g.process(a,{type:'room-chat',text:'Hello!'});
+ g.recordVoiceNote(a);
+ const after=g.snapshot('housemate',a).personalMetrics;
+ assert.ok(after.distanceWalked>=0);
+ assert.equal(after.roomMessages,1);assert.equal(after.voiceNotes,1);
+ assert.equal(g.snapshot('housemate',b).cast.find(p=>p.id===a.actorId).needs,null);
+ assert.notDeepEqual(after,g.snapshot('housemate',b).personalMetrics);
+});
+test('hug and high-five only animate after second player explicitly accepts',()=>{
+ const g=createGame(),a=client('a'),b=client('b');
+ g.join(a,'housemate','Ada','female');g.join(b,'housemate','Bayo','male');
+ const A=g.cast.find(x=>x.id===a.actorId),B=g.cast.find(x=>x.id===b.actorId);
+ Object.assign(A,{room:'lounge',floor:0,x:-8,z:-3.1});
+ Object.assign(B,{room:'lounge',floor:0,x:-7,z:-3.1});
+ let result=g.process(a,{type:'social-act',kind:'hug',targetId:B.id});
+ assert.equal(result.ok,true);assert.equal(A.socialAnimation,undefined);
+ let invitation=g.snapshot('housemate',b).socialInvites[0];
+ assert.equal(invitation.kind,'hug');assert.equal(g.snapshot('housemate',a).socialInvites.length,0);
+ result=g.process(b,{type:'social-reply',id:invitation.id,accept:false});
+ assert.equal(result.ok,true);assert.equal(A.socialAnimation,undefined);
+ a.lastSocialAct=0;
+ result=g.process(a,{type:'social-act',kind:'highfive',targetId:B.id});assert.equal(result.ok,true);
+ invitation=g.snapshot('housemate',b).socialInvites[0];
+ result=g.process(b,{type:'social-reply',id:invitation.id,accept:true});
+ assert.equal(result.ok,true);assert.equal(A.socialAnimation.kind,'highfive');
+ assert.equal(B.socialAnimation.partnerId,A.id);
+ assert.equal(g.snapshot('housemate',a).personalMetrics.socialInteractions,1);
+ assert.equal(g.snapshot('housemate',b).personalMetrics.socialInteractions,1);
+ A.socialAnimation.until=Date.now()-1;B.socialAnimation.until=Date.now()-1;g.tick();
+ assert.equal(A.socialAnimation,null);assert.equal(B.socialAnimation,null);
+});
+test('strangers cannot force social animations from elsewhere or by impersonation',()=>{
+ const g=createGame(),a=client('a'),b=client('b'),v=client('v');
+ g.join(a,'housemate','Ada','female');g.join(b,'housemate','Bayo','male');g.join(v,'viewer','Viewer');
+ assert.equal(g.process(v,{type:'social-act',targetId:a.actorId,kind:'hug'}).ok,false);
+ const B=g.cast.find(x=>x.id===b.actorId);B.room='kitchen';
+ assert.equal(g.process(a,{type:'social-act',targetId:b.actorId,kind:'hug'}).ok,false);
+ assert.equal(g.snapshot('housemate',b).socialInvites.length,0);
+});
