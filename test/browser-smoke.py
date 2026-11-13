@@ -54,7 +54,7 @@ def make_document(simulate_gpu_error=False, debug=False):
         .replace("from './voice-notes.js'", f"from '{notes}'")
         .replace("from './social-ui.js'", f"from '{social}'"))
     if debug:
-        app_source = app_source.replace('installWorldPointerHandlers(el.world);', 'installWorldPointerHandlers(el.world);globalThis.__houseScene=scene;globalThis.__houseState=state;')
+        app_source = app_source.replace('installWorldPointerHandlers(el.world);', 'installWorldPointerHandlers(el.world);Object.defineProperty(globalThis,"__houseScene",{configurable:true,get:()=>scene});globalThis.__houseState=state;')
     app = uri(app_source)
     html = (PUBLIC / 'index.html').read_text()
     css = (PUBLIC / 'css/style.css').read_text()+'\n'+(PUBLIC / 'css/island-ui.css').read_text()
