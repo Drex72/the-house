@@ -1,17 +1,34 @@
+# The House V9 · Player Motion & Social Conversations
+
+This branch adds a compact social layer to the existing multiplayer island house.
+
+**Getting started:** Run `npm start` with Node.js 20+ and open `http://localhost:3000`. Open two browsers to join as different housemates.
+
+### New housemate controls
+- **Walking:** animated footfall cadence now eases between walking and idling instead of restarting on every network packet. Procedural high-fives, hugging and dancing together are synchronized across players.
+- **Player interactions:** tap another housemate (or their roster entry) while nearby in the same room. **Wave** is immediate; **High-five**, **Hug**, and **Dance together** send a private consent request. Both real participants must agree before shared animations begin.
+- **Private metrics:** open **Menu → Me** to see food, energy, hygiene, social, fame, Notes, activity completions, distance walked, messages, voice notes and social interactions. Metrics are server-authoritative and only delivered to the owning player.
+- **Chat boxes:** click **💬 Talk** as a housemate to open room-only text chat. Messages appear temporarily in bubbles above visible players. The existing **Gist** is still the public audience channel.
+- **Voice notes:** inside **💬 Talk**, tap **Record voice note**, grant microphone permission, and tap **Stop and send** (automatic cutoff at 8 seconds). Audio is playable manually by housemates **in the same room**, never by spectators. MediaRecorder requires HTTPS or localhost. Nothing is stored on disk; notes disappear on refresh, reconnect or server restart.
+
+### Safety and current limitations
+- Consent is required for two-person physical animations, including hugging. Interaction requests expire after 20 seconds and are checked by the server for proximity, floor and room.
+- Voice notes are size-limited (32 KiB), throttled and kept in memory for delivery only. The server does not send them to viewers or other rooms. There is no background recording.
+- Real identities and long-term profiles are **not yet authenticated or persisted**; this is an interactive prototype, not a production voice/chat service.
+- Walking and interaction poses are procedural shapes, not mocap skeletal rigs. Hardware-specific performance and full microphone compatibility require real-device QA.
+- `npm test` runs game unit/security tests. `npm run test:integration` exercises live WebSockets, including private chat and voice-note routing. PR CI additionally checks JavaScript syntax.
+
+---
+
 # The House V9 · Object Interactions & Animations
-
 **Branch feature: expanded Sims-style contextual interactions** for the Lagos island-house game. Every one of the **24 rooms** has clickable props; the catalog now includes **65 interactable objects**. Tapping an object opens a small context-sensitive action menu; character movement, close buttons, camera modes, room restrictions and existing multiplayer rules are preserved.
-
 - Tap the **TV**, **remote**, **stereo**, **speakers**, **fridge**, **stove**, **mirror**, **bed**, **shower**, **pool**, **volleyball court**, or other in-world props. When far away, the character walks to the object.
 - TV channels, stereo power/track and light switches are **synchronized across connected clients**. The screen/equalizer react in 3D.
 - The stereo plays **three original synthesized loops** with opt-in, studio-only local sound; no copyrighted music or external player is included.
 - Avatars replicate object interaction poses, short hand gestures and simple held props. These are procedural animation cues, not fully rigged motion capture.
 - The contextual menu displays only when an object is clicked. **Inspect** is a safe secondary action, and **Ask to cuddle** still requires explicit consent from another real player.
-
 See [Interaction design and implementation](docs/OBJECT_INTERACTIONS.md) for state validation, audio behavior, content-extension instructions and limitations.
-
 ## Run and test
-
 ```bash
 npm start                   # Node.js 20+, http://localhost:3000
 npm test                    # 43 unit and simulation checks
@@ -20,11 +37,7 @@ python test/browser-smoke.py         # optional, requires Python Playwright and 
 python test/browser-objects.py       # desktop/mobile canvas click tests
 python test/browser-objects-touch.py # touch-specific pointer tests
 ```
-
 **Status:** tested locally, not deployed. The Chromium harness loads actual source in memory with mocked WebSocket events; the separate integration test uses actual live Node WebSockets. Browser audio and high-quality skeletal animation have not been validated on physical phones.
-
----
-
 # The House V8 · Stable Movement & Interactive Furniture
 
 **A runnable multiplayer 3D island house prototype.** V8 repairs camera jitter and camera-dependent colour changes and introduces object-specific interactions without adding permanent on-screen controls. It preserves the real-user-only housemates, needs, private bedroom rules, viewer cameras, beach compound, wardrobe and optional voice signaling from prior builds.

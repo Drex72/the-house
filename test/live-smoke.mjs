@@ -40,6 +40,17 @@ async function smoke(){
   assert.equal(w3.role,'housemate');assert.notEqual(w3.actorId,w1.actorId);
   s=await awaitMessage(viewer,m=>m.type==='snapshot'&&m.cast?.length===2,'two human avatars');
   assert.equal(s.cast.filter(a=>a.bot).length,0,'no simulated avatars');
+  actor.w.send(JSON.stringify({type:'room-chat',text:'Room-only hello'}));
+  const roomChat=await awaitMessage(second,m=>m.type==='snapshot'&&m.roomMessages?.some(x=>x.text==='Room-only hello'),'private room text');
+  assert.equal(roomChat.roomMessages[0].text,'Room-only hello');
+  assert.equal(viewer.messages.some(m=>m.type==='snapshot'&&m.roomMessages?.length>0),false,'viewers never receive room chat');
+  actor.w.send(JSON.stringify({type:'voice-note-start',mime:'audio/webm'}));
+  actor.w.send(JSON.stringify({type:'voice-note-chunk',data:Buffer.alloc(1100,7).toString('base64')}));
+  actor.w.send(JSON.stringify({type:'voice-note-end',seconds:1.2}));
+  const note=await awaitMessage(second,m=>m.type==='voice-note'&&m.from===w1.actorId,'room voice note');
+  assert.equal(note.mime,'audio/webm');assert.equal(Buffer.from(note.data,'base64').length,1100);
+  await awaitMessage(actor,m=>m.type==='snapshot'&&m.personalMetrics?.voiceNotes===1,'private voice note counter');
+  assert.equal(viewer.messages.some(m=>m.type==='voice-note'),false,'no voice note broadcast to spectators');
   for(let i=0;i<8;i++){actor.w.send(JSON.stringify({type:'move',dx:1,dz:0}));second.w.send(JSON.stringify({type:'move',dx:-1,dz:0}));await delay(78);}
   await delay(180);
   actor.w.send(JSON.stringify({type:'voice-toggle',enabled:true}));

@@ -1,9 +1,9 @@
 {
   "name": "the-house-lagos",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "private": true,
   "type": "module",
-  "description": "The House V9: expanded context menus, shared appliance state, stereo audio, animations and 3D picking",
+  "description": "The House V10: social animations, room conversations, voice notes and interactive objects with synchronized appliances",
   "scripts": {
     "start": "node server/index.mjs",
     "dev": "node --watch server/index.mjs",

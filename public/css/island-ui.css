@@ -159,3 +159,33 @@
 .object-sound small{display:block;color:#bdd8d6;font-weight:450;font-size:10px;margin-top:3px}
 #world{cursor:grab}#world:active{cursor:grabbing}
 @media(max-width:800px){.object-action-list{max-height:min(34dvh,260px)}.object-popover{max-height:min(55dvh,410px)}}
+
+/* Player interaction / communication: all controls are closed until requested. */
+.panel-tabs{grid-template-columns:repeat(5,minmax(0,1fr));}
+#person-popover{z-index:25;}
+.room-chat{position:absolute;right:18px;bottom:85px;z-index:21;width:min(352px,calc(100vw - 36px));max-height:min(64dvh,495px);display:flex;flex-direction:column;gap:9px;padding:14px;border-radius:18px;background:#163640f7;border:1px solid #e6d6b255;box-shadow:0 15px 44px #09263087;color:#fff8e8;backdrop-filter:blur(16px)}
+.room-chat-title{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:14px}
+.room-chat-title button{border:1px solid #ffffff34;background:#ffffff1c;border-radius:9px;color:white;width:34px;height:34px}
+.room-chat>p{margin:0;font-size:10px;line-height:1.4;color:#bad6d6}
+.room-messages{min-height:88px;max-height:min(30dvh,230px);overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:4px}
+.room-message{background:#ffffff10;border-radius:12px;padding:9px 10px;font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+.room-message strong{font-size:10px;color:#f9d2a2;display:block;margin-bottom:2px}
+.room-message audio{width:100%;max-height:36px;margin-top:4px}
+.room-chat-form{display:flex;gap:8px}
+.room-chat-form input{flex:1;min-width:0;padding:11px;border-radius:10px;border:1px solid #ffffff35;background:#fffefa14;color:white;font-size:12px}
+.room-chat-form input::placeholder{color:#b2d0cc}
+.room-chat-form button{border:0;border-radius:9px;background:#f4c88b;color:#153b42;width:43px;font-size:18px}
+.record-note{width:100%;min-height:39px;border-radius:10px;border:1px solid #e2b88a7b;background:#ffffff19;color:#ffdfb2;font-size:12px;font-weight:750}
+.record-note.recording{background:#b3424d;color:white;border-color:#ff9c96}
+.scene-speech{position:absolute;z-index:3;max-width:160px;transform:translate(-50%,-100%);pointer-events:none;text-align:center;color:#163740;background:#fffaf0;box-shadow:0 4px 12px #072b3657;border-radius:12px 12px 12px 3px;padding:7px 10px;font-size:11px;line-height:1.34;font-weight:650;overflow-wrap:anywhere}
+.scene-speech::after{content:'';position:absolute;bottom:-5px;left:47%;border-left:6px solid transparent;border-right:6px solid transparent;border-top:6px solid #fffaf0}
+.personal-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.personal-stat{background:#ffffff11;border:1px solid #ffffff24;border-radius:13px;padding:12px}
+.personal-stat small{display:block;font-size:10px;color:#bad6d4}
+.personal-stat strong{display:block;margin-top:4px;color:#ffe0aa;font-size:19px;line-height:1.1;font-variant-numeric:tabular-nums}
+.personal-need{grid-column:1/-1;display:flex;align-items:center;gap:12px;font-size:11px}
+.personal-need>span{width:75px;flex-shrink:0}
+.personal-need>div{flex:1;height:8px;background:#ffffff28;border-radius:7px;overflow:hidden}
+.personal-need>div>i{height:100%;background:#78d0ac;display:block;border-radius:7px}
+.personal-need>b{width:30px;text-align:right}
+@media(max-width:800px){.room-chat{right:9px;left:9px;bottom:77px;width:auto;max-height:54dvh}.room-messages{max-height:22dvh}.scene-speech{max-width:112px;font-size:10px}.personal-stat strong{font-size:17px}}

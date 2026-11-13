@@ -86,6 +86,7 @@ class Mesh {
  }
 }
 import {ROOMS,WALLS,FURNITURE,COLS,ROWS,ROOM_BY_ID,FLOOR_HEIGHT,canStand,roomAt,advanceActor,INTERACTABLES,OBJECT_BY_ID} from './world-layout.js';
+import {advanceGait,gestureProgress} from './motion.js';
 /** Camera only collides with structural walls, not small furniture or players.
  * Otherwise each chair produces a sudden camera zoom as the player passes it. */
 function cameraClear(x,z,floor,roomId){
@@ -463,11 +464,15 @@ function addDeviceVisuals(mesh,devices,roomLights,floor,time,selectedId){
  }
 }
 const skins=['#f0bc96','#cf936f','#a76b4c','#784832','#513324','#31221c'];
-function addCharacter(m,a,items,time){
+function addCharacter(m,a,items,time,players=[]){
  // Distinct stylized human avatars. Animated gait follows replicated real-player motion.
  const object=a.objectId?OBJECT_BY_ID[a.objectId]:null;
+ const partner=a.socialAnimation?.partnerId?players.find(p=>p.id===a.socialAnimation.partnerId):null;
+ const socialKind=partner&&a.socialAnimation?.until>Date.now()?a.socialAnimation.kind:null;
+ const socialWeight=socialKind?gestureProgress(a.socialAnimation,Date.now()):0;
  const resting=Boolean(object&&['sitting','lying','sleeping','cuddling'].includes(a.pose));
  let x=a.x,z=a.z,angle=a.angle||0,lift=0;
+ if(socialKind&&partner){angle=Math.atan2(partner.x-a.x,partner.z-a.z);if(socialKind==='hug'){x+=(partner.x-a.x)*.08*socialWeight;z+=(partner.z-a.z)*.08*socialWeight;}}
  if(resting){
   // Occupants render at seat/bed anchors. Their authoritative movement positions
   // remain just outside furniture, so movement collision stays deterministic.
@@ -491,13 +496,14 @@ function addCharacter(m,a,items,time){
  const working=['cooking','cleaning','washing','watering','speaking','singing','styling','showering','bathing','drinking','gaming'].includes(actionPose);
  const taskWave=working?Math.sin(time*(actionPose==='gaming'?8:4.1))*.18:0;
 
- const dancing=a.emote==='dance'||actionPose==='dancing'||/dance|freestyle|runway|skit|viral|party/.test(activity);
+ const dancing=a.emote==='dance'||socialKind==='dance'||actionPosedancing/dance|freestyle|runway|skit|viral|party/.test(activity);
  const training=['exercising','stretching','swimming','surfing','playing'].includes(actionPose)||/workout|hiit|train|swim|lap/.test(activity);
  const sitting=['sitting','watching','cuddling','eating','gaming','relaxing','meditating'].includes(a.pose)||/sleep|movie|watch|chess|relax|spa|self-care|tea party/.test(activity);
  const lying=['lying','sleeping'].includes(a.pose);
  const waving=a.emote==='wave'||a.emote==='cheer'||/grand entrance|victory speech|campaign/.test(activity);
- const walk=a.walking?Math.sin(time*9.5+(a.slot||0))*.22:training?Math.sin(time*7)*.07:0;
- const bob=training?Math.abs(Math.sin(time*8))*.10:dancing?Math.sin(time*7)*.075:sitting?-.30*settle:0;
+ const gaitWeight=a.gaitWeight??(a.walking?1:0);
+ const walk=Math.sin(a.gaitPhase??time*8.8)*.26*gaitWeight+(training?Math.sin(time*7)*.05:0);
+ const bob=training?Math.abs(Math.sin(time*8))*.10:dancing?Math.sin(time*7)*.075:sitting?-.30*settle:Math.abs(Math.sin(a.gaitPhase??time*9))*.045*gaitWeight;
  const yaw=angle;
  function p(dx,y,dz){const sway=dancing?Math.sin(time*6)*.05:0;return [x+dx*Math.cos(yaw)+dz*Math.sin(yaw)+sway,y+(y>.75?bob:0)+lift,z-dx*Math.sin(yaw)+dz*Math.cos(yaw)];}
  function box(dx,y,dz,w,h,d,col,rot=0){const q=p(dx,y,dz);m.box(...q,w,h,d,col,rot+yaw);}
@@ -526,7 +532,7 @@ function addCharacter(m,a,items,time){
  box(0,1.25,.36,.39,.12,.065,secondary);
  for(const side of [-1,1]){
   const swing=dancing?Math.sin(time*7+side*3)*.21:working?taskWave*(side===1?1:-1):walk*-side;
-  const lift=waving&&side===1?.48:reaching&&side===1?gestureWave*.52:working&&side===1?.26+taskWave:dancing?.19:training?.14: /cook|serve|record|set the table/i.test(activity)&&side===1?.17:0;
+  const lift=socialKind==='highfive'&&side===1?.82*socialWeight:socialKind==='hug'?.43*socialWeight:waving&&side===1?.48:reaching&&side===1?gestureWave*.52:working&&side===1?.26+taskWave:dancing?.19+Math.abs(Math.sin(time*6+side))*.15:training?.14: /cook|serve|record|set the table/i.test(activity)&&side===1?.17:0;
   sph(side*.59,1.41+lift*.25,0,.24,c,[.75,1,.85]);
   sph(side*.60,1.03+lift+swing*.21,stepFrom(side,walk)*.16,.17,skin,[.85,1.45,.9]);
   sph(side*.61,.78+lift+swing*.24,.04,.145,skin);
@@ -583,7 +589,7 @@ export class HouseScene{
    this.ctx=canvas.getContext('2d');this.available=Boolean(this.ctx);
    this.staticCpu=[buildWorld(0).shapes,buildWorld(1).shapes];this.roofCpu=[buildCeilings(0).shapes,buildCeilings(1).shapes];this.privacyCpu=[buildPrivacyRoofs(0).shapes,buildPrivacyRoofs(1).shapes];this.camera={eye:[-3,2.85,.3],target:[-8,1.4,-7]};
    this.view=lookAt(this.camera.eye,this.camera.target);this.proj=perspective(.9,1,.1,330);
-   this.cameraMode='lower';this.targetActor=null;this.room='lounge';this.viewFloor=0;this.zoom=1;this.orbit=0;this.heading=Math.PI;this.pitch=.42;this.cameraSnap=true;this.lastCameraTime=0;this.items=[];this.devices={};this.roomLights={};this.selectedObject=null;this.actors=[];this.actorTracks=new Map();this.localActorId=null;this.fps=0;this.frames=0;this.lastFps=performance.now();this.lastFallback=0;this.width=1;this.height=1;
+   this.cameraMode='lower';this.targetActor=null;this.room='lounge';this.viewFloor=0;this.zoom=1;this.orbit=0;this.heading=Math.PI;this.pitch=.42;this.cameraSnap=true;this.lastCameraTime=0;this.items=[];this.devices={};this.roomLights={};this.selectedObject=null;this.actors=[];this.actorTracks=new Map();this.gaitStates=new Map();this.localActorId=null;this.fps=0;this.frames=0;this.lastFps=performance.now();this.lastFallback=0;this.width=1;this.height=1;
    return;
   }
   const gl=this.gl;this.available=true;
@@ -640,7 +646,7 @@ void main(){
   gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.disable(gl.CULL_FACE);
   this.camera={eye:[-3,2.85,.3],target:[-8,1.4,-7]};this.view=lookAt(this.camera.eye,this.camera.target);this.proj=perspective(.9,1,.1,330);
   this.cameraMode='lower';this.targetActor=null;this.room='lounge';this.viewFloor=0;this.zoom=1;this.orbit=0;this.heading=Math.PI;this.pitch=.42;this.cameraSnap=true;this.lastCameraTime=0;
-  this.items=[];this.devices={};this.roomLights={};this.selectedObject=null;this.actors=[];this.actorTracks=new Map();this.localActorId=null;this.fps=0;this.frames=0;this.lastFps=performance.now();this.width=1;this.height=1;
+  this.items=[];this.devices={};this.roomLights={};this.selectedObject=null;this.actors=[];this.actorTracks=new Map();this.gaitStates=new Map();this.localActorId=null;this.fps=0;this.frames=0;this.lastFps=performance.now();this.width=1;this.height=1;
  }
  toBuffer(mesh,usage){const gl=this.gl,vao=gl.createVertexArray(),buffer=gl.createBuffer();gl.bindVertexArray(vao);gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
   gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(mesh.data),usage);
@@ -693,13 +699,18 @@ void main(){
      }else this.actorTracks.set(a.id,{...a,fromX:currentX,fromZ:currentZ,fromAngle:currentAngle,toX:a.x,toZ:a.z,toAngle:a.angle,receivedAt:now});
    }else this.actorTracks.set(a.id,{...a,fromX:a.x,fromZ:a.z,fromAngle:a.angle,toX:a.x,toZ:a.z,toAngle:a.angle,receivedAt:now});
   }
-  for(const id of this.actorTracks.keys())if(!valid.has(id))this.actorTracks.delete(id);
+  for(const id of this.actorTracks.keys())if(!valid.has(id)){this.actorTracks.delete(id);this.gaitStates.delete(id);}
   this.animateActors(now);
  }
  animateActors(now){
+  // Compatibility paths and geometry tests can instantiate without the constructor.
+  if(!this.gaitStates)this.gaitStates=new Map();
   this.actors=[...this.actorTracks.values()].map(track=>{
    const t=clamp((now-track.receivedAt)/155,0,1),difference=Math.atan2(Math.sin(track.toAngle-track.fromAngle),Math.cos(track.toAngle-track.fromAngle));
-   return {...track,x:mix(track.fromX,track.toX,t),z:mix(track.fromZ,track.toZ,t),angle:track.fromAngle+difference*t};
+   const actor={...track,x:mix(track.fromX,track.toX,t),z:mix(track.fromZ,track.toZ,t),angle:track.fromAngle+difference*t};
+    const gait=advanceGait(this.gaitStates.get(track.id),actor,now);
+    this.gaitStates.set(track.id,gait);
+    return {...actor,gaitWeight:gait.weight,gaitPhase:gait.phase};
   });
  }
  cameraFor(time){
@@ -758,7 +769,7 @@ void main(){
   if(!this.gl){this.fallbackFrame(time);return;}const gl=this.gl;
   const floor=this.viewFloor;
   let mesh=new Mesh();addDeviceVisuals(mesh,this.devices,this.roomLights,floor,time,this.selectedObject);for(const a of this.actors.filter(a=>a.floor===floor&&!a.hidden)){
-    const piece=new Mesh();addCharacter(piece,a,this.items,time);
+    const piece=new Mesh();addCharacter(piece,a,this.items,time,this.actors);
     const water=a.room==='pool'&&Math.abs(a.x+24)<5&&Math.abs(a.z-23)<3.6?-.55:0;const offset=(a.floor||0)*FLOOR_HEIGHT+water;
     for(let i=1;i<piece.data.length;i+=9)piece.data[i]+=offset;
     for(const shape of piece.shapes)shape.y+=offset;
@@ -779,7 +790,7 @@ void main(){
   if(performance.now()-this.lastFallback<66)return;
   const ctx=this.ctx,w=this.canvas.width,h=this.canvas.height;
   this.lastFallback=performance.now();
-  const dynamic=new Mesh();addDeviceVisuals(dynamic,this.devices,this.roomLights,this.viewFloor,time,this.selectedObject);for(const a of this.actors.filter(a=>a.floor===this.viewFloor&&!a.hidden)){const part=new Mesh();addCharacter(part,a,this.items,time);for(const shape of part.shapes)shape.y+=(a.floor||0)*FLOOR_HEIGHT+(a.room==='pool'&&Math.abs(a.x+24)<5&&Math.abs(a.z-23)<3.6?-.55:0);dynamic.shapes.push(...part.shapes);}
+  const dynamic=new Mesh();addDeviceVisuals(dynamic,this.devices,this.roomLights,this.viewFloor,time,this.selectedObject);for(const a of this.actors.filter(a=>a.floor===this.viewFloor&&!a.hidden)){const part=new Mesh();addCharacter(part,a,this.items,time,this.actors);for(const shape of part.shapes)shape.y+=(a.floor||0)*FLOOR_HEIGHT+(a.room==='pool'&&Math.abs(a.x+24)<5&&Math.abs(a.z-23)<3.6?-.55:0);dynamic.shapes.push(...part.shapes);}
   const floor=this.viewFloor;const shapes=[...this.staticCpu[floor],...(['room','follow','firstperson','orbit','shoulder','director'].includes(this.cameraMode)?this.roofCpu[floor]:[]),...(['lower','upper','topdown'].includes(this.cameraMode)?this.privacyCpu[floor]:[]),...dynamic.shapes];
   const eye=this.camera.eye;
   const forward=norm(sub(this.camera.target,eye));

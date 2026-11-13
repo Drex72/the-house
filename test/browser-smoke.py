@@ -27,8 +27,12 @@ def make_document(simulate_gpu_error=False, debug=False):
     layout_source = (PUBLIC / 'js/world-layout.js').read_text().replace("from './needs.js'", f"from '{needs}'")
     layout = uri(layout_source)
     voice = uri((PUBLIC / 'js/voice.js').read_text())
-    stereo = uri((PUBLIC / 'js/stereo.js').read_text())
-    scene_source = (PUBLIC / 'js/scene.js').read_text().replace("from './world-layout.js'", f"from '{layout}'")
+    motion = uri((PUBLIC / 'js/motion.js').read_text())
+    notes = uri((PUBLIC / 'js/voice-notes.js').read_text())
+    social = uri((PUBLIC / 'js/social-ui.js').read_text())
+    stereostereoscene_source = ((PUBLIC / 'js/scene.js').read_text()
+        .replace("from './world-layout.js'", f"from '{layout}'")
+        .replace("from './motion.js'", f"from '{motion}'"))
     if simulate_gpu_error:
         # Exactly one WebGL frame throws on first-person join; software fallback must survive.
         scene_source = scene_source.replace(
@@ -44,7 +48,9 @@ def make_document(simulate_gpu_error=False, debug=False):
         .replace("from './stereo.js'", f"from '{stereo}'")
         .replace("from './world-layout.js'", f"from '{layout}'")
         .replace("from './needs.js'", f"from '{needs}'")
-        .replace("from './navigation.js'", f"from '{navigation}'"))
+        .replace("from './navigation.js'", f"from '{navigation}'")
+        .replace("from './voice-notes.js'", f"from '{notes}'")
+        .replace("from './social-ui.js'", f"from '{social}'"))
     if debug:
         app_source = app_source.replace('installWorldPointerHandlers(el.world);', 'installWorldPointerHandlers(el.world);globalThis.__houseScene=scene;globalThis.__houseState=state;')
     app = uri(app_source)

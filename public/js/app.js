@@ -1,5 +1,7 @@
 import {HouseScene} from './scene.js';
 import {RoomVoice} from './voice.js';
+import {VoiceNotes} from './voice-notes.js';
+import {installSocialUI} from './social-ui.js';
 import {IslandStereo,ORIGINAL_TRACKS} from './stereo.js';
 import {FLOOR_HEIGHT,ROOMS,INTERACTABLES,OBJECT_ACTIONS,interactionInRange} from './world-layout.js';
 import {pathToObject} from './navigation.js';
@@ -22,13 +24,18 @@ catch (error) {
  scene=new HouseScene(el.world,{forceCanvas2D:true});
 }
 if(scene.available){scene.setMode('lower');scene.camera.eye=[32,58,50];scene.camera.target=[0,0,2];} // overview behind welcome screen
-const state={role:'viewer',actorId:null,selected:null,camera:'room',tab:'gist',name:'Lagos Legend',profile:{coins:1200,owned:['lagos-tee','denim'],outfit:'lagos-tee',skin:3,hair:1,votedPhase:''},items:[],templates:[],rooms:ROOMS,cast:[],feed:[],requests:[],votes:{},phase:null,connected:false,joined:false,paymentsEnabled:false,paymentToken:null,apiOrigin:location.origin,wing:'male',roomFloor:0,needs:null,objects:INTERACTABLES,devices:{},roomLights:{},socialInvites:[],selectedObject:null};
+const state={role:'viewer',actorId:null,selected:null,camera:'room',tab:'gist',name:'Lagos Legend',profile:{coins:1200,owned:['lagos-tee','denim'],outfit:'lagos-tee',skin:3,hair:1,votedPhase:''},items:[],templates:[],rooms:ROOMS,cast:[],feed:[],requests:[],votes:{},phase:null,connected:false,joined:false,paymentsEnabled:false,paymentToken:null,apiOrigin:location.origin,wing:'male',roomFloor:0,needs:null,objects:INTERACTABLES,devices:{},roomLights:{},socialInvites:[],selectedObject:null,personalMetrics:null,roomMessages:[],voiceNotes:[],selectedPerson:null};
 const skins=['#f0bc96','#cf936f','#a76b4c','#784832','#513324','#31221c'];
 const hairNames=['Fresh fade','Natural curls','Braids','Headwrap'];
 const emoji={host:'✳',chat:'✉',request:'☝',gift:'🎁',event:'✦'};
 let socket,toastTimer,renderAt=0,labelsAt=0,lastFeedId='',lastPanelId='',retryTimer;
 let autoRoute=null,queuedAction=null,routeFailures=0,lastInviteRendered=null;
 const voice=new RoomVoice(send,notify);
+const voiceNotes=new VoiceNotes(send,notify);
+const socialUI=installSocialUI({state,send,notice:notify,escape,scene,voiceNotes,closeMenus:()=>closeAllMenus(),getPlayer:()=>currentPlayer()});
+function renderRoomMessages(){socialUI.renderRoomMessages();}
+function receiveVoiceNote(data){socialUI.receiveVoiceNote(data);}
+function showPersonMenu(id){socialUI.showPersonMenu(id);}
 const stereo=new IslandStereo();
 function notify(message){el.toast.textContent=message;el.toast.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.toast.classList.remove('show'),2100);}
 function dismissToast(){clearTimeout(toastTimer);el.toast.classList.remove('show');}
@@ -57,7 +64,7 @@ async function connect(role){
    state.role=data.role;state.actorId=data.actorId;scene.localActorId=data.actorId;state.profile=data.profile;state.items=data.items;state.rooms=data.rooms;state.templates=data.templates;state.objects=data.objects||INTERACTABLES;state.paymentsEnabled=Boolean(data.paymentsEnabled);state.paymentToken=data.paymentToken;
    autoRoute=null;queuedAction=null;state.joined=true;state.selected=data.actorId||state.cast[0]?.id||null;scene.targetActor=state.selected;$('open-profile').textContent=(state.name[0]||'Y').toUpperCase();
    const m=state.role==='housemate'?'follow':'lower';setCamera(m);
-   el.overlay.hidden=true;$('room-badge').hidden=false;$('quick-controls').hidden=false;$('quick-explore').hidden=state.role!=='viewer';el.emotes.hidden=true;el.joystick.hidden=state.role!=='housemate'||!matchMedia('(pointer:coarse)').matches;
+   el.overlay.hidden=true;$('room-badge').hidden=false;$('quick-controls').hidden=false;$('quick-explore').hidden=state.role!=='viewer';el.emotes.hidden=true;$('quick-chat').hidden=state.role!=='housemate';el.joystick.hidden=state.role!=='housemate'||!matchMedia('(pointer:coarse)').matches;
    document.querySelectorAll('#camera-buttons [data-camera]').forEach(b=>b.hidden=!(b.dataset.for==='both'||b.dataset.for===state.role));
    $('voice-toggle').hidden=state.role!=='housemate';
    notify(state.role==='housemate'?'Welcome to the island. Move with WASD or your joystick.':'Welcome to the island. Choose a room or explore downstairs.');
@@ -67,20 +74,22 @@ async function connect(role){
    state.cast=data.cast||[];state.devices=Object.fromEntries((data.devices||[]).map(d=>[d.id,d]));state.roomLights=data.roomLights||{};scene.devices=state.devices;scene.roomLights=state.roomLights;
    const listener=state.cast.find(a=>a.id===state.actorId);const listeningRoom=state.role==='housemate'?listener?.room:(state.camera==='room'?scene.room:null);
    stereo.sync({...(state.devices['music-stereo']||{}),room:listeningRoom});
-   state.feed=data.feed||[];state.requests=data.requests||[];state.socialInvites=data.socialInvites||[];state.votes=data.votes||{};state.phase=data.phase;renderSocialInvite();
+   state.feed=data.feed||[];state.requests=data.requests||[];state.socialInvites=data.socialInvites||[];state.roomMessages=data.roomMessages||[];state.personalMetrics=data.personalMetrics||null;state.votes=data.votes||{};state.phase=data.phase;renderSocialInvite();renderRoomMessages();
    if(!state.cast.some(a=>a.id===state.selected))state.selected=state.cast[0]?.id||null;
    scene.targetActor=state.role==='housemate'?state.actorId:state.selected;scene.setActors(state.cast);scene.items=state.items;if(state.role==='housemate')voice.sync(state.actorId,state.cast);
    if(state.joined && (data.feed?.[0]?.id!==lastFeedId||data.cast?.length!==state.previousCastCount)){state.previousCastCount=data.cast?.length||0;lastFeedId=data.feed[0]?.id;renderUI(true);}
    return;
   }
   if(data.type==='voice-signal'){void voice.onSignal(data);return;}
+  if(data.type==='voice-note-result'){notify(data.ok?'Voice note delivered to this room.':data.reason||'Voice note failed.');return;}
+  if(data.type==='voice-note'){receiveVoiceNote(data);return;}
   if(data.type==='action-result'){notify(data.message||(data.ok?'Done.':'Action unavailable.'));if(data.ok&&data.openPanel==='shop')setTab('shop');if(!data.ok){autoRoute=null;queuedAction=null;}return;}
   if(data.type==='profile'){state.profile=data.profile;el.coin.textContent=Number(state.profile.coins).toLocaleString();if(state.tab==='shop')renderPanel();}
  });
  ws.addEventListener('close',()=>{
   if(socket!==ws)return;
-  state.connected=false;stereo.sync({powered:false});voice.disable(false);$('voice-toggle').classList.remove('active');$('voice-toggle').textContent='🎙 Voice off';
-  if(state.joined){notify('Connection lost. Reconnecting...');clearTimeout(retryTimer);retryTimer=setTimeout(()=>{if(!state.connected){state.joined=false;connectWithoutDialog();}},2400);}
+  state.connected=false;stereo.sync({powered:false});voice.disable(false);voiceNotes.cancel();$('voice-toggle').classList.remove('active');$('voice-toggle').textContent='🎙 Voice off';
+  if(state.joined){socialUI.cleanup();notify('Connection lost. Reconnecting...');clearTimeout(retryTimer);retryTimer=setTimeout(()=>{if(!state.connected){state.joined=false;connectWithoutDialog();}},2400);}
   else{$('join-viewer').disabled=false;$('join-housemate').disabled=false;notify('Could not connect. Try again.');}
  });
  ws.addEventListener('error',()=>{if(socket!==ws)return;if(!state.joined)notify('Server unavailable. Start the Node server first.');});
@@ -111,9 +120,9 @@ function closeDrawers(){
  $('drawer-backdrop').hidden=true;$('open-menu').setAttribute('aria-expanded','false');
 }
 function closeObjectMenu(){const menu=$('object-popover');menu.hidden=true;state.selectedObject=null;scene.selectedObject=null;}
-function closeAllMenus(){closeDrawers();el.rooms.hidden=true;$('camera-flyout').hidden=true;$('activities-flyout').hidden=true;closeObjectMenu();$('quick-view').setAttribute('aria-expanded','false');}
+function closeAllMenus(){closeDrawers();el.rooms.hidden=true;$('camera-flyout').hidden=true;$('activities-flyout').hidden=true;$('room-chat').hidden=true;$('person-popover').hidden=true;closeObjectMenu();$('quick-view').setAttribute('aria-expanded','false');}
 function openDrawer(kind){
- dismissToast();closeObjectMenu();el.rooms.hidden=true;$('camera-flyout').hidden=true;$('activities-flyout').hidden=true;
+ dismissToast();$('room-chat').hidden=true;$('person-popover').hidden=true;closeObjectMenu();el.rooms.hidden=true;$('camera-flyout').hidden=true;$('activities-flyout').hidden=true;
  $('cast-panel').classList.toggle('is-open',kind==='cast');
  el.panelRoot.classList.toggle('is-open',kind==='activity');
  $('drawer-backdrop').hidden=false;$('open-menu').setAttribute('aria-expanded','true');
@@ -148,13 +157,13 @@ $('camera-flyout').addEventListener('click',e=>{
 });
 function roomName(id){return state.rooms.find(r=>r.id===id)?.name||'The Lounge';}
 function chooseActor(id){if(!state.cast.find(c=>c.id===id&&!c.hidden))return;state.selected=id;
- if(state.role==='viewer'){scene.targetActor=id;setCamera('follow');}else notify('Watching your own character.');
+ if(state.role==='viewer'){scene.targetActor=id;setCamera('follow');}else if(id!==state.actorId){showPersonMenu(id);}else notify('This is your own character.');
  renderCast();}
 function avatar(a){const skin=skins[a.skin]||skins[3],shirt=state.items.find(i=>i.id===a.outfit)?.color||'#d48865';return `<span class="avatar-pip" style="background:${escape(shirt)}2b;--skin:${skin};--shirt:${escape(shirt)}"></span>`;}
 function renderCast(){if(!state.cast.length){el.cast.innerHTML='<div class="cast-empty"><strong>THE HOUSE IS OPEN</strong><p>No real housemates are inside yet. Be the first to enter, or share the link with your friends.</p><span>0 / 10 PLAYER SLOTS</span></div>';el.count.textContent='0 / 10 real housemates';return;}el.cast.innerHTML=state.cast.map((a,i)=>`<button class="cast-member ${state.selected===a.id?'selected':''}" data-person="${a.id}" aria-label="Follow ${escape(a.name)}">${avatar(a)}<span class="cast-desc"><strong>${escape(a.name)}${a.id===state.actorId?' (you)':''}</strong><small>${a.hidden?'PRIVATE ROOM':a.floor?'UPSTAIRS':'DOWNSTAIRS'} · ${a.voiceEnabled?'🎙 LIVE':'● REAL'} · ✦ ${a.fame.toLocaleString()}</small></span><span class="follow-glyph">${state.selected===a.id?'◉':'›'}</span></button>`).join('');
  el.count.textContent=`${state.cast.length} / 10 real housemates`;
 }
-function setTab(tab){state.tab=tab;document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));$('right-title').innerHTML={gist:'The Gist <span>🔥</span>',vote:'Your Vote <span>♡</span>',requests:'The Request Board <span>☝</span>',shop:'The Store <span>✦</span>'}[tab];$('chat-form').hidden=tab!=='gist';renderPanel();openDrawer('activity');}
+function setTab(tab){state.tab=tab;document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));$('right-title').innerHTML={gist:'The Gist <span>🔥</span>',vote:'Your Vote <span>♡</span>',requests:'The Request Board <span>☝</span>',shop:'The Store <span>✦</span>',stats:'My Life <span>●</span>'}[tab];$('chat-form').hidden=tab!=='gist';renderPanel();openDrawer('activity');}
 function renderFeed(){el.panel.innerHTML=`<p class="panel-intro">Straight from the house. All the banter, all the moments, all in real time.</p>`+state.feed.map(f=>`<div class="feed-item ${escape(f.type)}"><div class="feed-icon ${escape(f.type)}">${emoji[f.type]||'✦'}</div><div class="feed-content"><strong>${escape(f.name)}</strong><small>${new Date(f.time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</small><p>${escape(f.text)}</p></div></div>`).join('');}
 function renderVote(){const total=Object.values(state.votes).reduce((a,b)=>a+b,0),voted=state.profile.votedPhase===`${state.phase?.season}:${state.phase?.id}`;
  el.panel.innerHTML=`<p class="panel-intro">The audience decides who stays. Every viewer gets one free vote per round. ${state.cast.length?'':'Only actual connected players can receive votes.'}</p><div class="stat-row"><span><small>LIVE VOTES</small><br><strong>${total.toLocaleString()}</strong></span><span><small>YOUR VOTE</small><br><strong>${voted?'CAST':'AVAILABLE'}</strong></span></div>`+state.cast.map(a=>`<div class="voter">${avatar(a)}<div class="voter-main"><strong>${escape(a.name)}</strong><small>${state.votes[a.id]||0} vote${state.votes[a.id]===1?'':'s'}</small><div class="vote-track"><span style="width:${total?Math.round((state.votes[a.id]||0)/total*100):0}%"></span></div></div><button class="tiny-button" data-vote="${a.id}" ${voted?'disabled':''}>${voted?'✓':'VOTE'}</button></div>`).join('');}
@@ -177,7 +186,13 @@ function renderShop(){const owned=state.profile.owned||[];
  <p class="store-note">${state.paymentsEnabled?'Premium items use secure Paystack checkout with server-side payment verification.':'Real-money checkout is not enabled in this preview. No money can be charged.'} Earned Notes cannot be cashed out.</p>`;
 }
 function renderPanel(){const active=document.activeElement;if(el.panel.contains(active)&&['INPUT','SELECT','TEXTAREA'].includes(active?.tagName))return;
- if(state.tab==='gist')renderFeed();if(state.tab==='vote')renderVote();if(state.tab==='requests')renderRequests();if(state.tab==='shop')renderShop();}
+ if(state.tab==='gist')renderFeed();if(state.tab==='vote')renderVote();if(state.tab==='requests')renderRequests();if(state.tab==='shop')renderShop();if(state.tab==='stats')renderPersonalMetrics();}
+function renderPersonalMetrics(){
+ const m=state.personalMetrics;
+ if(!m){el.panel.innerHTML='<p class="panel-intro">Join as a housemate to track your own progress and personal needs. Viewer activity remains private.</p>';return;}
+ const items=[['Fame',m.fame],['Earned Notes',m.notes],['Tasks completed',m.activitiesCompleted],['Distance walked',m.distanceWalked+' m'],['Messages sent',m.roomMessages],['Voice notes',m.voiceNotes],['Social interactions',m.socialInteractions],['Time inside',Math.floor(m.timeInHouseSeconds/60)+' min']];
+ el.panel.innerHTML='<p class="panel-intro">Only you can see your personal metrics. Updated live during this session.</p><div class="personal-stats">'+items.map(([label,value])=>`<div class="personal-stat"><small>${escape(label)}</small><strong>${escape(value)}</strong></div>`).join('')+NEED_KEYS.map(k=>{const n=clampNeed(m.needs?.[k]??0);return `<div class="personal-need"><span>${NEED_META[k].icon} ${NEED_META[k].label}</span><div><i style="width:${n}%"></i></div><b>${Math.round(n)}</b></div>`;}).join('')+'</div>';
+}
 function renderNeeds(){
  const hud=$('needs-hud');if(!hud)return;
  const me=state.cast.find(a=>a.id===state.actorId),needs=me?.needs;
@@ -274,14 +289,14 @@ $('leave-house').addEventListener('click',()=>{
  // Leave explicitly: clear reconnection before closing the socket.
  clearTimeout(retryTimer);retryTimer=null;
  state.joined=false;state.connected=false;
- try{voice.disable(false);}catch(error){console.warn('Voice cleanup:',error);}
+ try{voice.disable(false);socialUI.cleanup();}catch(error){console.warn('Voice cleanup:',error);}
  const old=socket;socket=null;
  if(old){try{old.close(1000,'Left game');}catch{}}
- state.actorId=null;state.cast=[];state.selected=null;
+ state.actorId=null;state.cast=[];state.selected=null;state.personalMetrics=null;state.roomMessages=[];for(const note of state.voiceNotes)URL.revokeObjectURL(note.url);state.voiceNotes=[];roomMessageFingerprint='';
  scene.setActors([]);scene.localActorId=null;scene.targetActor=null;scene.room='lounge';scene.setMode('lower');
  $('profile-modal').hidden=true;closeAllMenus();$('needs-hud').hidden=true;
  $('entry-overlay').hidden=false;$('room-badge').hidden=true;$('quick-controls').hidden=true;
- $('joystick').hidden=true;$('voice-toggle').hidden=true;
+ $('joystick').hidden=true;$('quick-chat').hidden=true;$('voice-toggle').hidden=true;
  $('join-viewer').disabled=false;$('join-housemate').disabled=false;
  el.labels.innerHTML='';el.count.textContent='0 / 10 real housemates';
  notify('You left the house. You can rejoin whenever you like.');
@@ -322,7 +337,8 @@ function renderSocialInvite(){
  const invite=state.socialInvites[0],element=$('social-invite');if(!element)return;
  const id=invite?.id||null;if(id===lastInviteRendered)return;lastInviteRendered=id;
  element.hidden=state.role!=='housemate'||!invite;if(element.hidden)return;
- element.innerHTML=`<strong>♡ ${escape(invite.fromName)} wants to cuddle</strong><p>They'd like to sit close to you. It's completely your choice.</p><div class="social-invite-actions"><button type="button" data-decline-invite="${escape(invite.id)}">No thanks</button><button type="button" data-accept-invite="${escape(invite.id)}">Accept</button></div>`;
+ const description={cuddle:'cuddle',highfive:'high-five',hug:'hug',dance:'dance together'}[invite.kind||'cuddle']||'interact';
+ element.innerHTML=`<strong>♡ ${escape(invite.fromName)} wants to ${escape(description)}</strong><p>Shared interactions only start with your approval.</p><div class="social-invite-actions"><button type="button" data-decline-invite="${escape(invite.id)}">No thanks</button><button type="button" data-accept-invite="${escape(invite.id)}">Accept</button></div>`;
 }
 $('social-invite').addEventListener('click',e=>{
  const b=e.target.closest('[data-decline-invite],[data-accept-invite]');if(!b)return;
@@ -417,6 +433,13 @@ function installWorldPointerHandlers(canvas){
   const rect=canvas.getBoundingClientRect(),mx=e.clientX-rect.left,my=e.clientY-rect.top;
   if(state.role==='housemate'){
    const me=currentPlayer();if(!me||me.floor!==scene.viewFloor)return;
+   let closest=null,nearest=43;
+   for(const other of state.cast.filter(a=>!a.hidden&&a.id!==me.id&&a.floor===scene.viewFloor)){
+    const projected=scene.project([other.x,2.3+other.floor*FLOOR_HEIGHT,other.z]);
+    if(!projected)continue;const dist=Math.hypot(mx-projected[0],my-projected[1]);
+    if(dist<nearest){nearest=dist;closest=other;}
+   }
+   if(closest){showPersonMenu(closest.id);return;}
    const objects=state.objects.filter(o=>o.floor===me.floor&&o.room===me.room);
    const item=scene.pickObject(mx,my,objects);
    if(item){showObjectMenu(item,e.clientX,e.clientY);return;}
@@ -441,7 +464,7 @@ function drawLabels(){if(!scene.available||!state.joined)return;const now=perfor
  const max=innerWidth<750?5:10,selected=state.cast.find(a=>a.id===state.selected);
  const display=state.cast.slice(0,max).filter(a=>!a.hidden&&a.floor===scene.viewFloor&&!(state.role==='housemate'&&a.id===state.actorId));
  if(selected&&!selected.hidden&&selected.floor===scene.viewFloor&&!(state.role==='housemate'&&selected.id===state.actorId)&&!display.includes(selected))display.push(selected);
- el.labels.innerHTML=display.map(a=>{const visual=scene.actors.find(v=>v.id===a.id);if(!visual)return '';const p=scene.project([visual.x,2.9+visual.floor*FLOOR_HEIGHT,visual.z]);if(!p)return '';return `<button class="scene-label ${state.selected===a.id?'selected':''}" data-person="${a.id}" style="left:${p[0].toFixed(1)}px;top:${p[1].toFixed(1)}px">${escape(a.name)}${a.id===state.actorId?'<span>YOU</span>':''}</button>`;}).join('');
+ el.labels.innerHTML=display.map(a=>{const visual=scene.actors.find(v=>v.id===a.id);if(!visual)return '';const p=scene.project([visual.x,2.9+visual.floor*FLOOR_HEIGHT,visual.z]);if(!p)return '';const speech=a.speech?.until>Date.now()?`<div class="scene-speech" style="left:${p[0].toFixed(1)}px;top:${(p[1]-36).toFixed(1)}px">${escape(a.speech.text)}</div>`:'';return `${speech}<button class="scene-label ${state.selected===a.id?'selected':''}" data-person="${a.id}" style="left:${p[0].toFixed(1)}px;top:${p[1].toFixed(1)}px">${escape(a.name)}${a.id===state.actorId?'<span>YOU</span>':''}</button>`;}).join('');
 }
 let lastFrame=0;
 let softwareRecoveryAttempted=usedGraphicsFallback;
