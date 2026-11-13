@@ -12,6 +12,17 @@ const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
 const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
 const norm=a=>{const n=Math.hypot(...a)||1;return a.map(x=>x/n);};
+/** Camera-facing axes for spheres in the lightweight 2D fallback.
+ * World-X projected into a side-on camera collapses to ~0 pixels; this was
+ * producing black vertical hair streaks and detached, paper-thin limbs. */
+export function billboardAxes(eye,target){
+ const forward=norm(sub(target,eye));
+ let right=cross([0,1,0],forward);
+ if(Math.hypot(...right)<1e-5)right=[1,0,0];
+ right=norm(right);
+ const up=norm(cross(forward,right));
+ return {right,up,forward};
+}
 function perspective(fov,aspect,near,far){const f=1/Math.tan(fov/2);return [f/aspect,0,0,0,0,f,0,0,0,0,(far+near)/(near-far),-1,0,0,2*far*near/(near-far),0];}
 function orthographic(width,aspect,near,far){const h=width/aspect;return [2/width,0,0,0,0,2/h,0,0,0,0,-2/(far-near),0,0,0,-(far+near)/(far-near),1];}
 function lookAt(eye,target){const z=norm(sub(eye,target)),x=norm(cross([0,1,0],z)),y=cross(z,x);return [x[0],y[0],z[0],0,x[1],y[1],z[1],0,x[2],y[2],z[2],0,-dot(x,eye),-dot(y,eye),-dot(z,eye),1];}
@@ -878,7 +889,7 @@ void main(){
   }
   const floor=this.viewFloor;const shapes=[...this.staticCpu[floor],...(['room','follow','firstperson','orbit','shoulder','director'].includes(this.cameraMode)?this.roofCpu[floor]:[]),...(['lower','upper','topdown'].includes(this.cameraMode)?this.privacyCpu[floor]:[]),...dynamic.shapes];
   const eye=this.camera.eye;
-  const forward=norm(sub(this.camera.target,eye));
+  const {forward,right:billboardRight,up:billboardUp}=billboardAxes(eye,this.camera.target);
   const depthOf=o=>dot([o.x-eye[0],o.y-eye[1],o.z-eye[2]],forward);
   const isFloor=s=>s.type==='box'&&s.h<=1&&s.w>5&&s.d>3;
   shapes.sort((a,b)=>{
@@ -903,7 +914,12 @@ void main(){
   const renderShapes=[...shapes,...orderedAvatars.flatMap(group=>group.shapes)];
   for(const s of renderShapes){
    if(s.type==='sphere'){
-    const p=toScreen(s.x,s.y,s.z);const px=toScreen(s.x+s.r*s.scale[0],s.y,s.z),py=toScreen(s.x,s.y+s.r*s.scale[1],s.z);
+    const p=toScreen(s.x,s.y,s.z);
+    const scale=s.scale||[1,1,1];
+    const rx=s.r*Math.hypot(billboardRight[0]*scale[0],billboardRight[1]*scale[1],billboardRight[2]*scale[2]);
+    const ry=s.r*Math.hypot(billboardUp[0]*scale[0],billboardUp[1]*scale[1],billboardUp[2]*scale[2]);
+    const px=toScreen(s.x+billboardRight[0]*rx,s.y+billboardRight[1]*rx,s.z+billboardRight[2]*rx);
+    const py=toScreen(s.x+billboardUp[0]*ry,s.y+billboardUp[1]*ry,s.z+billboardUp[2]*ry);
     if(!p||!px||!py)continue;
     const rw=Math.max(.5,Math.hypot(px[0]-p[0],px[1]-p[1])),rh=Math.max(.5,Math.hypot(py[0]-p[0],py[1]-p[1]));
     ctx.beginPath();ctx.ellipse(p[0],p[1],rw,rh,0,0,2*Math.PI);ctx.fillStyle=faceColor(s.col,1.0);ctx.fill();continue;
