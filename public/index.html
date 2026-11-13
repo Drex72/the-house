@@ -38,11 +38,14 @@
   <aside id="needs-hud" class="needs-hud" aria-label="Your housemate needs" hidden></aside>
 
   <div id="object-popover" class="object-popover" role="dialog" aria-label="Furniture actions" hidden></div>
+  <div id="person-popover" class="object-popover" role="dialog" aria-label="Player interactions" hidden></div>
+  <section id="room-chat" class="room-chat" aria-label="Room conversation" hidden><div class="room-chat-title"><strong>💬 Room conversation</strong><button type="button" id="close-room-chat" aria-label="Close room conversation">✕</button></div><p>Only housemates in this room hear these messages and voice notes.</p><div id="room-messages" class="room-messages" aria-live="polite"></div><form id="room-chat-form" class="room-chat-form"><input id="room-text" maxlength="105" aria-label="Speak to this room" placeholder="Say something to this room…" autocomplete="off"/><button type="submit" aria-label="Send room message">➤</button></form><button type="button" id="record-note" class="record-note">🎙 Record voice note (8s max)</button></section>
   <div id="social-invite" class="social-invite" role="group" aria-label="Social interaction invitation" hidden></div>
   <div id="activities-flyout" class="activities-flyout" hidden></div>
   <div id="quick-controls" class="quick-controls" hidden>
     <button id="quick-view" class="quick-pill" type="button" aria-expanded="false">◉ View</button>
     <button id="quick-explore" class="quick-pill primary" type="button">⌗ Explore</button>
+    <button id="quick-chat" class="quick-pill" type="button" hidden>💬 Talk</button>
     <button type="button" id="interact-action" class="interact-action" hidden>✦ Do something</button>
   </div>
   <div id="camera-flyout" class="camera-flyout" hidden></div>
@@ -51,7 +54,7 @@
   <section class="right-panel glass-panel" id="activity-panel" aria-label="Game activity">
    <div class="right-heading"><div><span class="eyebrow">INSIDE THE HOUSE</span><h2 id="right-title">The Gist <span>🔥</span></h2></div><button type="button" class="mobile-close" id="close-panel" aria-label="Close game menu">✕</button></div>
    <button type="button" id="drawer-people" class="drawer-people" aria-label="Show housemates">👥 Housemates <span>View housemates →</span></button>
-   <nav class="panel-tabs" aria-label="Activity categories"><button class="tab active" data-tab="gist">Gist</button><button class="tab" data-tab="vote">Vote</button><button class="tab" data-tab="requests">Requests</button><button class="tab" data-tab="shop">Shop</button></nav>
+   <nav class="panel-tabs" aria-label="Activity categories"><button class="tab active" data-tab="gist">Gist</button><button class="tab" data-tab="vote">Vote</button><button class="tab" data-tab="requests">Requests</button><button class="tab" data-tab="shop">Shop</button><button class="tab" data-tab="stats">Me</button></nav>
    <div id="panel-content" class="panel-content"></div>
    <button type="button" class="voice-toggle" id="voice-toggle" aria-pressed="false" hidden>🎙 Voice off</button>
    <button type="button" id="graphics-fallback" class="graphics-option">◐ Switch to compatibility graphics</button>

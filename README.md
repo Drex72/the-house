@@ -1,3 +1,25 @@
+# The House V9 · Player Motion & Social Conversations
+
+This branch adds a compact social layer to the existing multiplayer island house.
+
+**Getting started:** Run `npm start` with Node.js 20+ and open `http://localhost:3000`. Open two browsers to join as different housemates.
+
+### New housemate controls
+- **Walking:** animated footfall cadence now eases between walking and idling instead of restarting on every network packet. Procedural high-fives, hugging and dancing together are synchronized across players.
+- **Player interactions:** tap another housemate (or their roster entry) while nearby in the same room. **Wave** is immediate; **High-five**, **Hug**, and **Dance together** send a private consent request. Both real participants must agree before shared animations begin.
+- **Private metrics:** open **Menu → Me** to see food, energy, hygiene, social, fame, Notes, activity completions, distance walked, messages, voice notes and social interactions. Metrics are server-authoritative and only delivered to the owning player.
+- **Chat boxes:** click **💬 Talk** as a housemate to open room-only text chat. Messages appear temporarily in bubbles above visible players. The existing **Gist** is still the public audience channel.
+- **Voice notes:** inside **💬 Talk**, tap **Record voice note**, grant microphone permission, and tap **Stop and send** (automatic cutoff at 8 seconds). Audio is playable manually by housemates **in the same room**, never by spectators. MediaRecorder requires HTTPS or localhost. Nothing is stored on disk; notes disappear on refresh, reconnect or server restart.
+
+### Safety and current limitations
+- Consent is required for two-person physical animations, including hugging. Interaction requests expire after 20 seconds and are checked by the server for proximity, floor and room.
+- Voice notes are size-limited (32 KiB), throttled and kept in memory for delivery only. The server does not send them to viewers or other rooms. There is no background recording.
+- Real identities and long-term profiles are **not yet authenticated or persisted**; this is an interactive prototype, not a production voice/chat service.
+- Walking and interaction poses are procedural shapes, not mocap skeletal rigs. Hardware-specific performance and full microphone compatibility require real-device QA.
+- `npm test` runs game unit/security tests. `npm run test:integration` exercises live WebSockets, including private chat and voice-note routing. PR CI additionally checks JavaScript syntax.
+
+---
+
 # The House V8 · Stable Movement & Interactive Furniture
 
 **A runnable multiplayer 3D island house prototype.** V8 repairs camera jitter and camera-dependent colour changes and introduces object-specific interactions without adding permanent on-screen controls. It preserves the real-user-only housemates, needs, private bedroom rules, viewer cameras, beach compound, wardrobe and optional voice signaling from prior builds.
