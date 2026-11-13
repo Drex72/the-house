@@ -26,7 +26,7 @@ with sync_playwright() as p:
   page.wait_for_timeout(2100)
   assert page.locator('#entry-overlay').evaluate('(e)=>e.hidden')
   cases=[
-   ('back-wall',-8,-10.42,0,True),
+   ('back-wall',-12.5,-10.42,0,True),
    ('solid-divider',-13,-9,1.57079632679,False),
    ('open-doorway',-13,-5,1.57079632679,False),
   ]
@@ -51,6 +51,7 @@ with sync_playwright() as p:
       distance:delta,mode:s.cameraMode,hasGraphics:s.available};
    }""")
    assert detail['hasGraphics'] and all(isinstance(v,(int,float)) for v in detail['eye'])
+   print('CAMERA DETAIL',width,name,detail,flush=True)
    assert detail['actorVisible']==(not detail['hidden']),'no half-rendered character through wall'
    if expect_near: assert detail['hidden'],'near-wall view should not draw a dismembered closeup'
    if name=='open-doorway':
