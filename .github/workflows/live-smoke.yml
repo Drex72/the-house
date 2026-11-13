@@ -1,0 +1,67 @@
+name: Live Vercel smoke check
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/live-smoke.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify deployed HTTP and WebSocket game endpoints
+        env:
+          LIVE_ORIGIN: https://the-house-wheat.vercel.app
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          const origin=process.env.LIVE_ORIGIN;
+          async function get(path) {
+            let error;
+            for(let attempt=0;attempt<12;attempt++) {
+              try {
+                const r=await fetch(origin+path,{signal:AbortSignal.timeout(10000),redirect:'follow'});
+                if(r.status===200)return r;
+                error=new Error(path+' returned HTTP '+r.status+' '+(await r.text()).slice(0,160));
+              }catch(e){error=e;}
+              await new Promise(resolve=>setTimeout(resolve,2500));
+            }
+            throw error;
+          }
+          const health=await (await get('/api/health')).json();
+          assert.equal(health.ok,true,'Game health endpoint should confirm server is running');
+          console.log('Health endpoint OK:',JSON.stringify(health));
+          const html=await (await get('/')).text();
+          assert.match(html,/<html/i,'HTML entrypoint should be accessible');
+          console.log('HTML entrypoint OK, bytes:',html.length);
+          const script=await (await get('/js/app.js')).text();
+          assert.match(script,/HouseScene/,'Client JavaScript should be served');
+          console.log('Client JS OK');
+          const uri=origin.replace(/^https/,'wss')+'/live';
+          async function join(role) {
+            const ws=new WebSocket(uri);
+            const seen=[];
+            await new Promise((resolve,reject)=>{
+              const timer=setTimeout(()=>reject(new Error('WebSocket welcome timeout for '+role)),13000);
+              ws.addEventListener('open',()=>ws.send(JSON.stringify({type:'join',role,name:'Smoke '+role,profileId:'ci-smoke-'+role+'-'+Date.now(),wing:'male'})));
+              ws.addEventListener('error',()=>{clearTimeout(timer);reject(new Error('WebSocket connection failed for '+role));});
+              ws.addEventListener('message',event=>{
+                let msg;try{msg=JSON.parse(event.data);}catch{return;}
+                seen.push(msg);
+                if(msg.type==='welcome'){clearTimeout(timer);resolve();}
+              });
+            });
+            return {ws,seen};
+          }
+          const housemate=await join('housemate');
+          const viewer=await join('viewer');
+          assert.ok(housemate.seen.some(x=>x.type==='welcome'&&x.role==='housemate'),'First real player should receive housemate welcome');
+          assert.ok(viewer.seen.some(x=>x.type==='welcome'),'Viewer should receive welcome');
+          housemate.ws.close();viewer.ws.close();
+          console.log('WebSocket housemate and viewer joined successfully');
+          NODE
