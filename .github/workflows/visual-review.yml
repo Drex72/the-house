@@ -39,7 +39,7 @@ jobs:
           from pathlib import Path
           from PIL import Image
           import base64,io
-          for name in ['housemate-1180x740.png','housemate-390x844.png','compound-overview-1180x740.png','activities-390x844.png']:
+          for name in ['housemate-1180x740.png','housemate-390x844.png','compound-overview-1180x740.png','activities-390x844.png','clickable-sofa-1180x740.png','touch-object-390x844.png']:
               p=Path('artifacts')/name
               if not p.exists(): continue
               img=Image.open(p).convert('RGB')
