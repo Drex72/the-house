@@ -38,6 +38,21 @@ export function createGame(){
  const startedAt=Date.now()-132000;
  /** No computer-controlled or synthetic participants. The cast is exactly active sockets. */
  const cast=[];const profiles=new Map(),requests=[],votes=new Map(),socialInvites=[];
+ // Public, server-authoritative shared appliance state. Never accept arbitrary client values.
+ const devices={
+  'lounge-tv':{id:'lounge-tv',room:'lounge',kind:'tv',powered:false,channel:0},
+  'cinema-screen':{id:'cinema-screen',room:'cinema',kind:'tv',powered:false,channel:0},
+  'music-stereo':{id:'music-stereo',room:'music',kind:'stereo',powered:false,track:0},
+ };
+ const roomLights=Object.fromEntries(ROOMS.map(r=>[r.id,true]));
+ const TV_CHANNELS=['Island Cinema','Lagos Living','House Highlights'];
+ const MUSIC_TRACKS=['Island Groove','Sunset Highlife','Lagos Bounce'];
+ function deviceFor(obj,kind){
+   if(kind==='tv')return devices[obj.room==='cinema'?'cinema-screen':'lounge-tv'];
+   if(kind==='stereo')return obj.room==='music'?devices['music-stereo']:null;
+   return null;
+ }
+
  const feed=[{id:'welcome',type:'host',name:'Oga House',text:'Ẹ káàbọ̀! Explore the house, invite friends and apply to be a housemate.',time:Date.now()}];
  let seq=0,lastPhase='';
  function profile(id){let p=profiles.get(id);if(!p){p={id,coins:1200,owned:['lagos-tee','denim'],outfit:'lagos-tee',skin:3,hair:1,name:'Guest',votedPhase:'',lastRequest:0,wing:null,activityWins:0};profiles.set(id,p);}return p;}
@@ -50,8 +65,8 @@ export function createGame(){
     const here=ROOM_BY_ID[room],owner=client?.actorId===id;
     const hidden=!owner && (here?.access==='private'||here?.access==='male-private'||here?.access==='female-private');
     return {id,name,skin,hair,outfit,x:hidden?null:x,z:hidden?null:z,angle,walking,emote,fame,line,room: hidden?'private':room,
-      activity:hidden?'':activity,pose:hidden?'':a.pose,objectId:hidden?null:a.objectId,seatIndex:a.objectId?cast.filter(p=>p.objectId===a.objectId).findIndex(p=>p.id===a.id):0,activityId:hidden?'':a.activityId,activityStarted:hidden?0:a.activityStarted,activityUntil:hidden?0:a.activityUntil,activityLock:owner&&a.activityLock===true,needs:owner?{...a.needs}:null,floor,wing,voiceEnabled,hidden,bot:false};
-  }),requests:requests.filter(x=>x.expires>Date.now()).map(({id,template,text,target,from,votes,status})=>({id,template,text,target,from,votes,status})),socialInvites:client?.actorId?socialInvites.filter(i=>i.targetId===client.actorId&&i.expires>Date.now()).map(i=>({id:i.id,fromId:i.fromId,fromName:i.fromName,objectId:i.objectId,expires:i.expires})):[],votes:totals,feed:feed.slice(0,12)};
+      activity:hidden?'':activity,pose:hidden?'':a.pose,poseStarted:hidden?0:a.poseStarted,objectId:hidden?null:a.objectId,seatIndex:a.objectId?cast.filter(p=>p.objectId===a.objectId).findIndex(p=>p.id===a.id):0,activityId:hidden?'':a.activityId,activityStarted:hidden?0:a.activityStarted,activityUntil:hidden?0:a.activityUntil,activityLock:owner&&a.activityLock===true,gesture:hidden?'':a.gesture,gestureStarted:hidden?0:a.gestureStarted,gestureUntil:hidden?0:a.gestureUntil,needs:owner?{...a.needs}:null,floor,wing,voiceEnabled,hidden,bot:false};
+  }),devices:Object.values(devices).map(d=>({...d})),roomLights:{...roomLights},requests:requests.filter(x=>x.expires>Date.now()).map(({id,template,text,target,from,votes,status})=>({id,template,text,target,from,votes,status})),socialInvites:client?.actorId?socialInvites.filter(i=>i.targetId===client.actorId&&i.expires>Date.now()).map(i=>({id:i.id,fromId:i.fromId,fromName:i.fromName,objectId:i.objectId,expires:i.expires})):[],votes:totals,feed:feed.slice(0,12)};
  }
  function join(client,requestedRole,requestedName,requestedWing){
   const p=profile(client.profileId);const safe=cleanText(requestedName,18);
@@ -66,7 +81,7 @@ export function createGame(){
     }
     if(!spawn){for(const room of ROOMS.filter(r=>r.floor===0&&!r.outdoor&&r.public)){if(canStand(room.x,room.z,cast,null,CHARACTER_RADIUS,0,p.wing)){spawn=[room.x,room.z];break;}}}
     if(spawn){
-      const a={id:`player-${++seq}`,owner:client.id,profileId:client.profileId,name:p.name,skin:p.skin,hair:p.hair,outfit:p.outfit,x:spawn[0],z:spawn[1],angle:Math.PI,walking:false,emote:'',fame:0,line:'Here for the cruise.',room:roomAt(...spawn,0).id,floor:0,wing:p.wing,activity:'',activityUntil:0,activityRoom:null,activityLock:false,pose:'',objectId:null,needs:newNeeds(),needsUpdatedAt:Date.now(),voiceEnabled:false,lastMove:Date.now()};
+      const a={id:`player-${++seq}`,owner:client.id,profileId:client.profileId,name:p.name,skin:p.skin,hair:p.hair,outfit:p.outfit,x:spawn[0],z:spawn[1],angle:Math.PI,walking:false,emote:'',fame:0,line:'Here for the cruise.',room:roomAt(...spawn,0).id,floor:0,wing:p.wing,activity:'',activityUntil:0,activityRoom:null,activityLock:false,pose:'',objectId:null,gesture:'',gestureStarted:0,gestureUntil:0,needs:newNeeds(),needsUpdatedAt:Date.now(),voiceEnabled:false,lastMove:Date.now()};
       cast.push(a);client.role='housemate';client.actorId=a.id;
     }
   }
@@ -74,7 +89,7 @@ export function createGame(){
   return {type:'welcome',role:client.role,actorId:client.actorId,profile:{...p},rooms:ROOMS,items:ITEMS,templates:REQUEST_TEMPLATES,capacity:MAX_HOUSEMATES,objects:INTERACTABLES};
  }
  function leave(client){const idx=cast.findIndex(a=>a.owner===client.id);if(idx>=0){const [a]=cast.splice(idx,1);for(let i=socialInvites.length-1;i>=0;i--)if(socialInvites[i].targetId===a.id||socialInvites[i].fromId===a.id)socialInvites.splice(i,1);for(const other of cast)if(other.pose==='cuddling'&&other.objectId===a.objectId){other.pose='sitting';other.activity='Sitting together';}addFeed('event','Oga House',`${a.name} has left the house.`);}}
-  const stopPose=who=>{if(!who)return;const obj=who.objectId;who.pose='';who.objectId=null;who.activity='';who.activityUntil=0;who.activityLock=false;who.activityRoom=null;who.activityEffects=null;for(const mate of cast)if(mate.id!==who.id&&mate.objectId===obj&&mate.pose==='cuddling'){mate.pose='sitting';mate.activity='Sitting together';}};
+  const stopPose=who=>{if(!who)return;const obj=who.objectId;who.gesture='';who.pose='';who.objectId=null;who.activity='';who.activityUntil=0;who.activityLock=false;who.activityRoom=null;who.activityEffects=null;for(const mate of cast)if(mate.id!==who.id&&mate.objectId===obj&&mate.pose==='cuddling'){mate.pose='sitting';mate.activity='Sitting together';}};
  function process(client,msg){
   if(!msg||typeof msg!=='object')return;
   const now=Date.now(),p=profile(client.profileId),actor=cast.find(a=>a.owner===client.id);
@@ -118,11 +133,11 @@ export function createGame(){
      addFeed('event',actor.name,`${actor.name} started: ${action.title} · ${room.name}`);break;
    }
    case 'object-act':{
-     if(!actor)return {ok:false,reason:'Only housemates can use furniture.'};
+     if(!actor)return {ok:false,reason:'Only housemates can interact with objects.'};
      const obj=OBJECT_BY_ID[String(msg.objectId||'')];
      const key=String(msg.action||''),action=OBJECT_ACTIONS[key];
-     if(!obj||!action||!obj.actions.includes(key))return {ok:false,reason:'That action is not available for this object.'};
-     if(!interactionInRange(actor,obj))return {ok:false,reason:'Move closer to the furniture first.'};
+     if(!obj||!action||!(key==='inspect'||obj.actions.includes(key)))return {ok:false,reason:'That action is not available for this object.'};
+     if(!interactionInRange(actor,obj))return {ok:false,reason:'Move closer to the object first.'};
      if(now-(client.lastObjectAction||0)<350)return {ok:false,reason:'Please wait a moment.'};
      if(actor.activityUntil>now)return {ok:false,reason:'Finish or stop your current activity first.'};
      const occupants=cast.filter(a=>a.id!==actor.id&&a.objectId===obj.id&&a.pose);
@@ -136,13 +151,37 @@ export function createGame(){
        return {ok:true,message:`Asked ${other.name} to cuddle. Waiting for their answer.`};
      }
      if(['sit','lie','sleep'].includes(key)&&occupants.length>=capacity)return {ok:false,reason:'There is no available space here.'};
+     if(key==='travel'){
+       client.lastObjectAction=now;
+       process(client,{type:'travel'});
+       return {ok:true,message:'Going to the other floor.'};
+     }
+     client.lastObjectAction=now;
+     // Short gestures are replicated, but must NOT lock the player in a permanent pose.
+     actor.gesture=action.pose||'inspecting';actor.gestureStarted=now;
+     actor.gestureUntil=now+(action.moment?1500:action.duration?800:650);
+     if(key==='inspect')return {ok:true,message:`${obj.label}: ${obj.actions.filter(k=>k!=='inspect').map(k=>OBJECT_ACTIONS[k]?.label).filter(Boolean).join(', ')||'A decorative feature of the house.'}`};
+     if(key==='try_on')return {ok:true,message:'Opening your wardrobe.',openPanel:'shop'};
+     if(key==='remote_pickup')return {ok:true,message:'Remote in hand. Use it to switch the TV on or change channels.'};
+     if(key==='fridge_open')return {ok:true,message:'You opened the fridge. Choose Have something to eat for a snack.'};
+     const device=action.device&&action.device!=='lights'?deviceFor(obj,action.device):null;
+     if(action.device==='lights'){
+       roomLights[obj.room]=!roomLights[obj.room];
+       return {ok:true,message:`${ROOM_BY_ID[obj.room]?.name||'Room'} lights ${roomLights[obj.room]?'on':'off'}.`};
+     }
+     if(['tv_power','tv_channel','tv_movie','music_toggle','music_next'].includes(key)&&!device)return {ok:false,reason:'The appliance is not connected here.'};
+     if(key==='tv_power'){device.powered=!device.powered;addFeed('event',actor.name,`${actor.name} turned the ${obj.room==='cinema'?'cinema screen':'TV'} ${device.powered?'on':'off'}.`);return {ok:true,message:`TV ${device.powered?'on':'off'}.`};}
+     if(key==='tv_channel'){device.powered=true;device.channel=(device.channel+1)%TV_CHANNELS.length;return {ok:true,message:`Now showing ${TV_CHANNELS[device.channel]}.`};}
+     if(key==='music_toggle'){device.powered=!device.powered;addFeed('event',actor.name,`${actor.name} ${device.powered?'started':'stopped'} the studio music.`);return {ok:true,message:device.powered?`Playing ${MUSIC_TRACKS[device.track]}. Tap Enable sound to hear original in-game music.`:'Music paused.'};}
+     if(key==='music_next'){device.powered=true;device.track=(device.track+1)%MUSIC_TRACKS.length;return {ok:true,message:`Now playing ${MUSIC_TRACKS[device.track]}.`};}
+     if(key==='watch'||key==='tv_movie'){const tv=deviceFor(obj,'tv');if(tv)tv.powered=true;}
+     if(action.moment)return {ok:true,message:action.label};
      stopPose(actor);
-     actor.pose=action.pose;actor.objectId=obj.id;actor.poseStarted=now;actor.activity=action.label;actor.activityRoom=obj.room;
+     actor.gesture='';actor.pose=action.pose;actor.objectId=obj.id;actor.poseStarted=now;actor.activity=action.label;actor.activityRoom=obj.room;
      actor.activityStarted=now;actor.activityUntil=action.duration?now+action.duration*1000:0;
      actor.activityLock=true;actor.walking=false;actor.lastMove=0;
      actor.activityReward=action.duration?15:0;
-     actor.activityEffects=key==='eat'?{hunger:25}:key==='cook'?{hunger:10}:key==='exercise'?{energy:-9,hygiene:-8}:null;
-     client.lastObjectAction=now;
+     actor.activityEffects=action.effects|| (key==='eat'?{hunger:25}:key==='cook'?{hunger:10}:key==='exercise'?{energy:-9,hygiene:-8}:null);
      addFeed('event',actor.name,`${actor.name} chose to ${action.label.toLowerCase()} at ${obj.label}.`);
      return {ok:true,message:action.duration?`${action.label} started.`:`${action.label}. Press Stand up to move again.`};
    }
@@ -223,6 +262,7 @@ export function createGame(){
    if(a.pose==='cuddling')a.needs.social=Math.min(100,a.needs.social+elapsed*.001*.75);
    a.walking=now-a.lastMove<210&&!a.activityLock;
    if(a.emoteUntil<now)a.emote='';
+   if(a.gestureUntil<now)a.gesture='';
    if(a.activity&&a.activityUntil>0&&a.activityUntil<=now){
     const p=profile(a.profileId),completed=a.room===a.activityRoom;
     if(completed){p.coins+=a.activityReward||0;p.activityWins++;a.fame+=5;a.needs=applyNeedEffects(a.needs,a.activityEffects);addFeed('event',a.name,`${a.name} completed ${a.activity} and earned ✦ ${a.activityReward} Notes!`);}

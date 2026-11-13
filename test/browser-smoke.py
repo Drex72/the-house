@@ -27,6 +27,7 @@ def make_document(simulate_gpu_error=False, debug=False):
     layout_source = (PUBLIC / 'js/world-layout.js').read_text().replace("from './needs.js'", f"from '{needs}'")
     layout = uri(layout_source)
     voice = uri((PUBLIC / 'js/voice.js').read_text())
+    stereo = uri((PUBLIC / 'js/stereo.js').read_text())
     scene_source = (PUBLIC / 'js/scene.js').read_text().replace("from './world-layout.js'", f"from '{layout}'")
     if simulate_gpu_error:
         # Exactly one WebGL frame throws on first-person join; software fallback must survive.
@@ -40,6 +41,7 @@ def make_document(simulate_gpu_error=False, debug=False):
     app_source = ((PUBLIC / 'js/app.js').read_text()
         .replace("from './scene.js'", f"from '{scene}'")
         .replace("from './voice.js'", f"from '{voice}'")
+        .replace("from './stereo.js'", f"from '{stereo}'")
         .replace("from './world-layout.js'", f"from '{layout}'")
         .replace("from './needs.js'", f"from '{needs}'")
         .replace("from './navigation.js'", f"from '{navigation}'"))

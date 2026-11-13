@@ -24,7 +24,7 @@ with sync_playwright() as p:
     return {center,left,eye:s.camera.eye,mode:s.cameraMode,match:center&&s.pickObject(...center,window.__houseState.objects.filter(it=>it.room==='lounge'))?.id};
   }''')
   print('DEBUG',width,scene_info,flush=True)
-  candidates=page.evaluate("""() => window.__houseState.objects.filter(o=>o.room==='lounge').map(o=>({id:o.id,center:window.__houseScene.project([o.x,.9,o.z])}))""")
+  candidates=page.evaluate("""() => window.__houseState.objects.filter(o=>o.room==='lounge').map(o=>({id:o.id,center:window.__houseScene.project([o.x,o.kind==='tv'?2.2:.9,o.z])}))""")
   print('CANDIDATES',width,candidates,flush=True)
   visible=[o for o in candidates if o['center'] and 10<o['center'][0]<width-10 and 82<o['center'][1]<height-85]
   assert visible, 'At least one contextual object should be visible in each viewport'

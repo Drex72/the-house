@@ -16,6 +16,30 @@ function perspective(fov,aspect,near,far){const f=1/Math.tan(fov/2);return [f/as
 function orthographic(width,aspect,near,far){const h=width/aspect;return [2/width,0,0,0,0,2/h,0,0,0,0,-2/(far-near),0,0,0,-(far+near)/(far-near),1];}
 function lookAt(eye,target){const z=norm(sub(eye,target)),x=norm(cross([0,1,0],z)),y=cross(z,x);return [x[0],y[0],z[0],0,x[1],y[1],z[1],0,x[2],y[2],z[2],0,-dot(x,eye),-dot(y,eye),-dot(z,eye),1];}
 function transform(m,v){return [0,1,2,3].map(i=>(m[i]*v[0]+m[i+4]*v[1]+m[i+8]*v[2]+m[i+12]*v[3]));}
+// Column-major matrix helpers, shared by perspective and orthographic object picking.
+function multiply4(a,b){const c=Array(16).fill(0);for(let col=0;col<4;col++)for(let row=0;row<4;row++)for(let k=0;k<4;k++)c[col*4+row]+=a[k*4+row]*b[col*4+k];return c;}
+function inverse4(m){
+ const a=Array.from({length:4},(_,r)=>[...Array.from({length:4},(_,c)=>m[c*4+r]),...Array.from({length:4},(_,c)=>Number(c===r))]);
+ for(let i=0;i<4;i++){
+  let pivot=i;for(let r=i+1;r<4;r++)if(Math.abs(a[r][i])>Math.abs(a[pivot][i]))pivot=r;
+  if(Math.abs(a[pivot][i])<1e-10)return null;
+  [a[i],a[pivot]]=[a[pivot],a[i]];
+  const divisor=a[i][i];for(let c=0;c<8;c++)a[i][c]/=divisor;
+  for(let r=0;r<4;r++)if(r!==i){const k=a[r][i];for(let c=0;c<8;c++)a[r][c]-=k*a[i][c];}
+ }
+ return Array.from({length:16},(_,i)=>a[i%4][4+Math.floor(i/4)]);
+}
+function intersectAABB(origin,direction,min,max){
+ let tmin=0,tmax=Infinity;
+ for(let i=0;i<3;i++){
+  if(Math.abs(direction[i])<1e-8){if(origin[i]<min[i]||origin[i]>max[i])return Infinity;continue;}
+  const a=(min[i]-origin[i])/direction[i],b=(max[i]-origin[i])/direction[i];
+  tmin=Math.max(tmin,Math.min(a,b));tmax=Math.min(tmax,Math.max(a,b));
+  if(tmin>tmax)return Infinity;
+ }
+ return tmin;
+}
+
 class Mesh {
  constructor(){this.data=[];this.shapes=[];}
  tri(a,b,c,n,col){const rgbc=rgb(col);for(const p of [a,b,c])this.data.push(...p,...n,...rgbc);}
@@ -329,6 +353,51 @@ function buildWorld(floor=0){
   for(const x of [3,13])plant(x,-9.2);
   for(const x of [4,12]){cyl(x,.43,-1.8,.69,.5,'#7c6483');cyl(x,.70,-1.8,1.0,.13,'#edbc7e');}
  }
+ // Game props live at the same coordinates as the interaction registry.
+ // Add tactile, recognizable small objects rather than invisible hit boxes.
+ for(const o of INTERACTABLES.filter(o=>o.floor===floor)){
+  const x=o.x,z=o.z;
+  if(o.kind==='remote'){
+   box(x,.92,z,.35,.075,.18,'#302e34');
+   for(const dx of [-.08,0,.08])ball(x+dx,.967,z,.034,'#c8d8d5',8,4);
+  }else if(o.kind==='stereo'){
+   box(x,1.42,z,1.0,.66,.39,'#292a35');
+   box(x,1.47,z+.2,.68,.36,.035,'#57bda1');
+   for(const dx of [-.34,.34])cyl(x+dx,1.44,z+.23,.11,.05,'#e0be8d',12);
+  }else if(o.kind==='speaker'){
+   box(x,1.4,z,1.15,1.85,.76,'#34344b');
+   for(const dy of [1.0,1.72])cyl(x,dy,z+.40,dy===1?.30:.19,.055,'#9874b1',16);
+  }else if(o.kind==='mirror'){
+   box(x,2.05,z,Math.max(.22,o.w),2.8,.22,'#cba87e');
+   box(x,2.05,z+.16,Math.max(.17,o.w-.16),2.53,.035,'#a5d5dd');
+  }else if(o.kind==='art'){
+   box(x,2.45,z,2.8,2.2,.15,'#e3ba81');
+   box(x,2.45,z+.09,2.42,1.89,.04,'#a37ba8');
+  }else if(o.kind==='microphone'){
+   cyl(x,.85,z,.08,1.7,'#44404e',12);ball(x,1.82,z,.20,'#9a9397',14,8);
+  }else if(o.kind==='mixer'){
+   box(x,1.07,z,2.85,.22,1.0,'#33313c');
+   for(let i=0;i<8;i++)box(x-1.15+i*.32,1.204,z,.20,.035,.42,i%2?'#e2b47a':'#71a6aa');
+  }else if(o.kind==='lamp'){
+   cyl(x,1.24,z,.09,2.45,'#806775',11);
+   ball(x,2.65,z,.36,'#ffe0a1',16,8,[1,.88,1]);
+  }else if(o.kind==='projector'){
+   box(x,3.43,z,1.25,.48,.75,'#e9ddd0');
+   cyl(x,3.41,z+.39,.21,.20,'#5c6570',14);
+  }else if(o.kind==='sink'){
+   box(x,1.48,z,.92,.08,.68,'#bdcfd1');
+   cyl(x,1.75,z-.14,.045,.62,'#c0b6aa',10);
+  }else if(o.kind==='stove'){
+   for(const dx of [-.44,.44])for(const dz of [-.22,.22])cyl(x+dx,1.41,z+dz,.23,.07,'#2b2a2f',12);
+  }else if(o.kind==='board'){
+   box(x,.22,z,2.6,.32,.43,'#b38b74');
+  }else if(o.kind==='umbrella'){
+   cyl(x,1.25,z,.09,2.5,'#ab7b54',12);
+   cyl(x,2.48,z,1.5,.14,'#f7c080',24,.14);
+  }else if(o.kind==='fridge'){
+   for(let yy of [1.3,2.3])box(x+.78,yy,z+.58,.085,.5,.11,'#8899a0');
+  }
+ }
  return g;
 }
 function buildPrivacyRoofs(floor=0){
@@ -354,6 +423,45 @@ function buildCeilings(floor=0){
  }
  return g;
 }
+/** Lightweight real-time reactions to the server-authoritative appliances.
+ * Uses the same dynamic mesh for WebGL2 and 2D compatibility mode. */
+function addDeviceVisuals(mesh,devices,roomLights,floor,time,selectedId){
+ for(const d of Object.values(devices||{})){
+  const room=ROOM_BY_ID[d.room];if(!room||room.floor!==floor)continue;
+  const y=floor*FLOOR_HEIGHT;
+  if(d.kind==='tv'){
+   const isCinema=d.id==='cinema-screen',x=isCinema?8:-8,z=isCinema?-11.37:-11.20;
+   const w=isCinema?7.2:5.8,h=isCinema?1.9:2.12;
+   if(d.powered){
+    const colors=['#52779a','#915e94','#cc8669'];
+    mesh.box(x,1.95+y,z,w,h,.065,colors[d.channel%3]);
+    mesh.box(x,2.11+y,z+.04,w*.54,.30,.078,'#f8d5a0');
+    for(let i=0;i<5;i++)mesh.box(x-w*.33+i*w*.16,1.58+y,z+.045,w*.11,.12,.081,'#ead0d0');
+   }else mesh.box(x,1.97+y,z,w,h,.055,'#2a2c39');
+  }else if(d.kind==='stereo'&&d.powered){
+   for(let i=0;i<7;i++){
+    const h=.25+.72*Math.abs(Math.sin(time*4.7+i*1.7));
+    mesh.box(-24-1.20+i*.38,1.18+y+h/2,7.12,.23,h,.07,i%2?'#f3b36e':'#7fd7c7');
+   }
+  }
+ }
+ // Clearly readable lights state with restrained fixture colors; no camera-relative flicker.
+ for(const o of INTERACTABLES.filter(v=>v.kind==='lamp'&&v.floor===floor)){
+  const on=roomLights?.[o.room]!==false;
+  mesh.sphere(o.x,2.65+floor*FLOOR_HEIGHT,o.z,.28,on?'#fff1bd':'#695e67',12,8,[1,.65,1]);
+ }
+ if(selectedId){
+  const o=OBJECT_BY_ID[selectedId];
+  if(o&&o.floor===floor){
+   const r=Math.max(.63,Math.min(2.5,Math.max(o.w,o.d)/2));
+   const pulse=1+.05*Math.sin(time*4);
+   // Four understated corners instead of a huge on-screen highlight or persistent HUD.
+   for(const angle of [0,PI/2,PI,3*PI/2]){
+    mesh.sphere(o.x+Math.cos(angle)*r*pulse,.20+floor*FLOOR_HEIGHT,o.z+Math.sin(angle)*r*pulse,.09,'#f0d4a0',8,4,[1,.32,1]);
+   }
+  }
+ }
+}
 const skins=['#f0bc96','#cf936f','#a76b4c','#784832','#513324','#31221c'];
 function addCharacter(m,a,items,time){
  // Distinct stylized human avatars. Animated gait follows replicated real-player motion.
@@ -374,13 +482,22 @@ function addCharacter(m,a,items,time){
  const outfit=items?.find(it=>it.id===a.outfit)||{color:'#ed9b53',accent:'#f3e1ca'};
  const skin=skins[a.skin]||skins[3],c=outfit.color,secondary=outfit.accent||'#f3ca9b';
  const activity=String(a.activity||'').toLowerCase();
- const dancing=a.emote==='dance'||/dance|freestyle|runway|skit|viral|party/.test(activity);
- const training=/workout|hiit|train|swim|lap/.test(activity);
- const sitting=['sitting','watching','cuddling','eating'].includes(a.pose)||/sleep|movie|watch|chess|relax|spa|self-care|tea party/.test(activity);
+ const gesture=a.gestureUntil>Date.now()?a.gesture:'';
+ const reaching=['remote','reaching','inspecting','styling','admiring','watering'].includes(gesture);
+ const gestureWave=reaching?Math.sin(Math.min(1,(Date.now()-(a.gestureStarted||0))/380)*PI)*.8:0;
+ const actionPose=String(a.pose||'');
+ const actionAge=Math.max(0,(Date.now()-(a.poseStarted||Date.now()))/1000);
+ const settle=clamp(actionAge/.34,0,1);
+ const working=['cooking','cleaning','washing','watering','speaking','singing','styling','showering','bathing','drinking','gaming'].includes(actionPose);
+ const taskWave=working?Math.sin(time*(actionPose==='gaming'?8:4.1))*.18:0;
+
+ const dancing=a.emote==='dance'||actionPose==='dancing'||/dance|freestyle|runway|skit|viral|party/.test(activity);
+ const training=['exercising','stretching','swimming','surfing','playing'].includes(actionPose)||/workout|hiit|train|swim|lap/.test(activity);
+ const sitting=['sitting','watching','cuddling','eating','gaming','relaxing','meditating'].includes(a.pose)||/sleep|movie|watch|chess|relax|spa|self-care|tea party/.test(activity);
  const lying=['lying','sleeping'].includes(a.pose);
  const waving=a.emote==='wave'||a.emote==='cheer'||/grand entrance|victory speech|campaign/.test(activity);
  const walk=a.walking?Math.sin(time*9.5+(a.slot||0))*.22:training?Math.sin(time*7)*.07:0;
- const bob=training?Math.abs(Math.sin(time*8))*.10:dancing?Math.sin(time*7)*.075:sitting?-.30:0;
+ const bob=training?Math.abs(Math.sin(time*8))*.10:dancing?Math.sin(time*7)*.075:sitting?-.30*settle:0;
  const yaw=angle;
  function p(dx,y,dz){const sway=dancing?Math.sin(time*6)*.05:0;return [x+dx*Math.cos(yaw)+dz*Math.sin(yaw)+sway,y+(y>.75?bob:0)+lift,z-dx*Math.sin(yaw)+dz*Math.cos(yaw)];}
  function box(dx,y,dz,w,h,d,col,rot=0){const q=p(dx,y,dz);m.box(...q,w,h,d,col,rot+yaw);}
@@ -396,7 +513,7 @@ function addCharacter(m,a,items,time){
  // Angular hips with more organic shaped trousers/leggings and footwear.
  sph(0,.89,0,.48,secondary,[1,.54,.62]);
  for(const side of [-1,1]){
-  const step=dancing?Math.sin(time*9+side*3)*.24:walk*side;
+  const step=dancing?Math.sin(time*9+side*3)*.24:actionPose==='swimming'?Math.sin(time*5+side*PI)*.30:walk*side;
   sph(side*.23,sitting?.48:.62,sitting?.28:step*.20,.24,secondary,[.76,sitting?.85:1.38,sitting?1.5:.9]);
   cyl(side*.23,sitting?.29:.31,sitting?.56:step*.33,.155,sitting?.30:.44,secondary);
   box(side*.23,.11,(sitting?.84:.18+step*.40),.36,.19,.59,'#fff3e6');
@@ -408,12 +525,26 @@ function addCharacter(m,a,items,time){
  sph(0,1.64,.10,.38,secondary,[1,.13,.70]);
  box(0,1.25,.36,.39,.12,.065,secondary);
  for(const side of [-1,1]){
-  const swing=dancing?Math.sin(time*7+side*3)*.21:walk*-side;
-  const lift=waving&&side===1?.48:dancing?.19:training?.14: /cook|serve|record|set the table/i.test(activity)&&side===1?.17:0;
+  const swing=dancing?Math.sin(time*7+side*3)*.21:working?taskWave*(side===1?1:-1):walk*-side;
+  const lift=waving&&side===1?.48:reaching&&side===1?gestureWave*.52:working&&side===1?.26+taskWave:dancing?.19:training?.14: /cook|serve|record|set the table/i.test(activity)&&side===1?.17:0;
   sph(side*.59,1.41+lift*.25,0,.24,c,[.75,1,.85]);
   sph(side*.60,1.03+lift+swing*.21,stepFrom(side,walk)*.16,.17,skin,[.85,1.45,.9]);
   sph(side*.61,.78+lift+swing*.24,.04,.145,skin);
  }
+ // Tiny held props make actions readable even with the low-poly avatar fallback.
+ if((gesture==='remote'||actionPose==='watching')&&!lying){box(.63,1.30+gestureWave*.3,.14,.10,.20,.21,'#2f3f4d');}
+ if(['drinking','eating'].includes(actionPose)){
+  cyl(.6,1.17+taskWave,.32,.12,.23,actionPose==='drinking'?'#ecd1a2':'#f8e7d3');
+ }
+ if(['singing','speaking'].includes(actionPose)){
+  cyl(.62,1.26+taskWave,.25,.055,.36,'#44404c');sph(.62,1.44+taskWave,.25,.12,'#a8a1a8');
+ }
+ if(['cooking','washing','cleaning'].includes(actionPose)){
+  box(.55,1.02+taskWave,.40,.44,.10,.38,'#b6bec3');
+ }
+ if(actionPose==='watering')cyl(.63,.95+taskWave,.27,.17,.3,'#66aa8f');
+ if(['playing','volleyball'].includes(actionPose))sph(.55,1.14+Math.abs(Math.sin(time*4))*.15,.44,.21,'#d6ba82');
+
  cyl(0,1.8,0,.16,.23,skin);
  sph(0,2.18,0,.375,skin,[.93,1.13,.87]);
  // Ears, nose, eyes, brows and a subtle smile, all oriented to the front.
@@ -452,7 +583,7 @@ export class HouseScene{
    this.ctx=canvas.getContext('2d');this.available=Boolean(this.ctx);
    this.staticCpu=[buildWorld(0).shapes,buildWorld(1).shapes];this.roofCpu=[buildCeilings(0).shapes,buildCeilings(1).shapes];this.privacyCpu=[buildPrivacyRoofs(0).shapes,buildPrivacyRoofs(1).shapes];this.camera={eye:[-3,2.85,.3],target:[-8,1.4,-7]};
    this.view=lookAt(this.camera.eye,this.camera.target);this.proj=perspective(.9,1,.1,330);
-   this.cameraMode='lower';this.targetActor=null;this.room='lounge';this.viewFloor=0;this.zoom=1;this.orbit=0;this.heading=Math.PI;this.pitch=.42;this.cameraSnap=true;this.lastCameraTime=0;this.items=[];this.actors=[];this.actorTracks=new Map();this.localActorId=null;this.fps=0;this.frames=0;this.lastFps=performance.now();this.lastFallback=0;this.width=1;this.height=1;
+   this.cameraMode='lower';this.targetActor=null;this.room='lounge';this.viewFloor=0;this.zoom=1;this.orbit=0;this.heading=Math.PI;this.pitch=.42;this.cameraSnap=true;this.lastCameraTime=0;this.items=[];this.devices={};this.roomLights={};this.selectedObject=null;this.actors=[];this.actorTracks=new Map();this.localActorId=null;this.fps=0;this.frames=0;this.lastFps=performance.now();this.lastFallback=0;this.width=1;this.height=1;
    return;
   }
   const gl=this.gl;this.available=true;
@@ -509,7 +640,7 @@ void main(){
   gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.disable(gl.CULL_FACE);
   this.camera={eye:[-3,2.85,.3],target:[-8,1.4,-7]};this.view=lookAt(this.camera.eye,this.camera.target);this.proj=perspective(.9,1,.1,330);
   this.cameraMode='lower';this.targetActor=null;this.room='lounge';this.viewFloor=0;this.zoom=1;this.orbit=0;this.heading=Math.PI;this.pitch=.42;this.cameraSnap=true;this.lastCameraTime=0;
-  this.items=[];this.actors=[];this.actorTracks=new Map();this.localActorId=null;this.fps=0;this.frames=0;this.lastFps=performance.now();this.width=1;this.height=1;
+  this.items=[];this.devices={};this.roomLights={};this.selectedObject=null;this.actors=[];this.actorTracks=new Map();this.localActorId=null;this.fps=0;this.frames=0;this.lastFps=performance.now();this.width=1;this.height=1;
  }
  toBuffer(mesh,usage){const gl=this.gl,vao=gl.createVertexArray(),buffer=gl.createBuffer();gl.bindVertexArray(vao);gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
   gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(mesh.data),usage);
@@ -626,7 +757,7 @@ void main(){
  frame(time){if(!this.available)return;this.resize();this.animateActors(performance.now());this.cameraFor(time);
   if(!this.gl){this.fallbackFrame(time);return;}const gl=this.gl;
   const floor=this.viewFloor;
-  let mesh=new Mesh();for(const a of this.actors.filter(a=>a.floor===floor&&!a.hidden)){
+  let mesh=new Mesh();addDeviceVisuals(mesh,this.devices,this.roomLights,floor,time,this.selectedObject);for(const a of this.actors.filter(a=>a.floor===floor&&!a.hidden)){
     const piece=new Mesh();addCharacter(piece,a,this.items,time);
     const water=a.room==='pool'&&Math.abs(a.x+24)<5&&Math.abs(a.z-23)<3.6?-.55:0;const offset=(a.floor||0)*FLOOR_HEIGHT+water;
     for(let i=1;i<piece.data.length;i+=9)piece.data[i]+=offset;
@@ -648,7 +779,7 @@ void main(){
   if(performance.now()-this.lastFallback<66)return;
   const ctx=this.ctx,w=this.canvas.width,h=this.canvas.height;
   this.lastFallback=performance.now();
-  const dynamic=new Mesh();for(const a of this.actors.filter(a=>a.floor===this.viewFloor&&!a.hidden)){const part=new Mesh();addCharacter(part,a,this.items,time);for(const shape of part.shapes)shape.y+=(a.floor||0)*FLOOR_HEIGHT+(a.room==='pool'&&Math.abs(a.x+24)<5&&Math.abs(a.z-23)<3.6?-.55:0);dynamic.shapes.push(...part.shapes);}
+  const dynamic=new Mesh();addDeviceVisuals(dynamic,this.devices,this.roomLights,this.viewFloor,time,this.selectedObject);for(const a of this.actors.filter(a=>a.floor===this.viewFloor&&!a.hidden)){const part=new Mesh();addCharacter(part,a,this.items,time);for(const shape of part.shapes)shape.y+=(a.floor||0)*FLOOR_HEIGHT+(a.room==='pool'&&Math.abs(a.x+24)<5&&Math.abs(a.z-23)<3.6?-.55:0);dynamic.shapes.push(...part.shapes);}
   const floor=this.viewFloor;const shapes=[...this.staticCpu[floor],...(['room','follow','firstperson','orbit','shoulder','director'].includes(this.cameraMode)?this.roofCpu[floor]:[]),...(['lower','upper','topdown'].includes(this.cameraMode)?this.privacyCpu[floor]:[]),...dynamic.shapes];
   const eye=this.camera.eye;
   const forward=norm(sub(this.camera.target,eye));
@@ -688,6 +819,28 @@ void main(){
  /** Returns the closest clickable furnishing beneath a screen tap.
   * Camera projection and renderer use the same view/projection matrices. */
  pickObject(screenX,screenY,objects=INTERACTABLES){
+  // Use true 3D depth when the camera is available: front tables must not
+  // shadow TV screens, and tiny remotes should win over furniture behind them.
+  if(this.view&&this.proj&&this.width&&this.height){
+   const inv=inverse4(multiply4(this.proj,this.view));
+   if(inv){
+    const x=screenX/this.width*2-1,y=1-screenY/this.height*2;
+    const unproject=z=>{const p=transform(inv,[x,y,z,1]);return p.slice(0,3).map(v=>v/p[3]);};
+    const origin=unproject(-1),far=unproject(1),direction=norm(sub(far,origin));
+    const hits=[];
+    for(const o of objects){
+     if(o.floor!==this.viewFloor)continue;
+     const base=o.floor*FLOOR_HEIGHT;
+     const bounds={remote:[.84,1.1],table:[.05,.95],tv:[1.0,3.45],projector:[3.0,4.15],lamp:[.05,3.5],mirror:[.4,3.6],speaker:[.45,2.6],stereo:[.95,2.3],art:[1.0,3.5],microphone:[.2,2.15]};
+     const [low,high]=bounds[o.kind]||[0,o.height||1.4];
+     const t=intersectAABB(origin,direction,[o.x-o.w/2,base+low,o.z-o.d/2],[o.x+o.w/2,base+high,o.z+o.d/2]);
+     if(Number.isFinite(t))hits.push({o,t});
+    }
+    hits.sort((a,b)=>a.t-b.t||a.o.w*a.o.d-b.o.w*b.o.d);
+    if(hits.length)return hits[0].o;
+   }
+  }
+  // Conservative projection fallback for test doubles or unusual GPU matrices.
   const candidates=[];
   for(const o of objects){
    if(o.floor!==this.viewFloor)continue;
@@ -697,12 +850,11 @@ void main(){
     const p=this.project([o.x+sx*o.w/2,y+sy*depth+.1,o.z+sz*o.d/2]);if(p)corners.push(p);
    }
    if(corners.length<4)continue;
-   const x0=Math.min(...corners.map(p=>p[0]))-7,x1=Math.max(...corners.map(p=>p[0]))+7;
-   const y0=Math.min(...corners.map(p=>p[1]))-7,y1=Math.max(...corners.map(p=>p[1]))+7;
+   const x0=Math.min(...corners.map(p=>p[0]))-4,x1=Math.max(...corners.map(p=>p[0]))+4;
+   const y0=Math.min(...corners.map(p=>p[1]))-4,y1=Math.max(...corners.map(p=>p[1]))+4;
    if(screenX<x0||screenX>x1||screenY<y0||screenY>y1)continue;
    const worldDistance=Math.hypot(o.x-this.camera.eye[0],y+depth/2-this.camera.eye[1],o.z-this.camera.eye[2]);
-   const spread=Math.max(16,Math.sqrt((x1-x0)*(y1-y0)));
-   candidates.push({o,score:worldDistance+(Math.hypot(screenX-(x0+x1)/2,screenY-(y0+y1)/2)/spread)*.5});
+   candidates.push({o,score:worldDistance});
   }
   candidates.sort((a,b)=>a.score-b.score);return candidates[0]?.o||null;
  }

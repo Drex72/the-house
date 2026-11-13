@@ -1,9 +1,9 @@
 {
   "name": "the-house-lagos",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "private": true,
   "type": "module",
-  "description": "The House V8: stable camera and lighting, clickable furniture, and consent-based shared actions",
+  "description": "The House V9: expanded context menus, shared appliance state, stereo audio, animations and 3D picking",
   "scripts": {
     "start": "node server/index.mjs",
     "dev": "node --watch server/index.mjs",
