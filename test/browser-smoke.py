@@ -30,7 +30,7 @@ def make_document(simulate_gpu_error=False, debug=False):
     motion = uri((PUBLIC / 'js/motion.js').read_text())
     notes = uri((PUBLIC / 'js/voice-notes.js').read_text())
     social = uri((PUBLIC / 'js/social-ui.js').read_text())
-    scene_source = ((PUBLIC / 'js/scene.js').read_text()
+    stereostereoscene_source = ((PUBLIC / 'js/scene.js').read_text()
         .replace("from './world-layout.js'", f"from '{layout}'")
         .replace("from './motion.js'", f"from '{motion}'"))
     if simulate_gpu_error:
@@ -45,6 +45,7 @@ def make_document(simulate_gpu_error=False, debug=False):
     app_source = ((PUBLIC / 'js/app.js').read_text()
         .replace("from './scene.js'", f"from '{scene}'")
         .replace("from './voice.js'", f"from '{voice}'")
+        .replace("from './stereo.js'", f"from '{stereo}'")
         .replace("from './world-layout.js'", f"from '{layout}'")
         .replace("from './needs.js'", f"from '{needs}'")
         .replace("from './navigation.js'", f"from '{navigation}'")

@@ -1,3 +1,16 @@
+# V9 — Contextual object interactions and animations · 13 November 2026
+
+- Expanded physical interactions to **65 registered objects in all 24 rooms**, including a TV remote, shared TV channels, Afrobeats stereo, speakers/mixer, appliances, bathroom fixtures, mirrors, game and beach equipment, lights and décor.
+- Added server-authoritative appliance on/off/channel/track state to WebSocket snapshots; protected all actions by role, room, floor, distance and allowlisted server actions.
+- Added original synthesized stereo loops, explicitly user-enabled and audible only when physically in the music room. No external/copyrighted music streams.
+- Added short-lived replicated hand gestures, more activity poses, held cups, microphones and remote, reactive TV screens/stereo equalizer, and a selected-object locator.
+- Replaced 2D rectangle-only picking with proper 3D depth intersections, fixing TV click selection behind a foreground table.
+- Preserved consent-gated shared sofa cuddling, private bedroom rules, client fallback renderer and minimal contextual menus.
+- Verification: 43 Node tests, multi-client WebSocket integration, desktop/mobile mouse and touch action menus, Chromium housemate/render recovery tests all passed in this environment.
+- Still a procedural WebGL2 prototype, not fully rigged motion capture. Production browser/phone audio and deployed performance are unverified.
+
+---
+
 # V8 — Stable Movement & Interactive Furniture · 13 November 2026
 
 ## Bug fixes

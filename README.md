@@ -20,6 +20,24 @@ This branch adds a compact social layer to the existing multiplayer island house
 
 ---
 
+# The House V9 · Object Interactions & Animations
+**Branch feature: expanded Sims-style contextual interactions** for the Lagos island-house game. Every one of the **24 rooms** has clickable props; the catalog now includes **65 interactable objects**. Tapping an object opens a small context-sensitive action menu; character movement, close buttons, camera modes, room restrictions and existing multiplayer rules are preserved.
+- Tap the **TV**, **remote**, **stereo**, **speakers**, **fridge**, **stove**, **mirror**, **bed**, **shower**, **pool**, **volleyball court**, or other in-world props. When far away, the character walks to the object.
+- TV channels, stereo power/track and light switches are **synchronized across connected clients**. The screen/equalizer react in 3D.
+- The stereo plays **three original synthesized loops** with opt-in, studio-only local sound; no copyrighted music or external player is included.
+- Avatars replicate object interaction poses, short hand gestures and simple held props. These are procedural animation cues, not fully rigged motion capture.
+- The contextual menu displays only when an object is clicked. **Inspect** is a safe secondary action, and **Ask to cuddle** still requires explicit consent from another real player.
+See [Interaction design and implementation](docs/OBJECT_INTERACTIONS.md) for state validation, audio behavior, content-extension instructions and limitations.
+## Run and test
+```bash
+npm start                   # Node.js 20+, http://localhost:3000
+npm test                    # 43 unit and simulation checks
+npm run test:integration    # live multi-client WebSocket test
+python test/browser-smoke.py         # optional, requires Python Playwright and Chromium
+python test/browser-objects.py       # desktop/mobile canvas click tests
+python test/browser-objects-touch.py # touch-specific pointer tests
+```
+**Status:** tested locally, not deployed. The Chromium harness loads actual source in memory with mocked WebSocket events; the separate integration test uses actual live Node WebSockets. Browser audio and high-quality skeletal animation have not been validated on physical phones.
 # The House V8 · Stable Movement & Interactive Furniture
 
 **A runnable multiplayer 3D island house prototype.** V8 repairs camera jitter and camera-dependent colour changes and introduces object-specific interactions without adding permanent on-screen controls. It preserves the real-user-only housemates, needs, private bedroom rules, viewer cameras, beach compound, wardrobe and optional voice signaling from prior builds.

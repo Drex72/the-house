@@ -2,6 +2,7 @@ import {HouseScene} from './scene.js';
 import {RoomVoice} from './voice.js';
 import {VoiceNotes} from './voice-notes.js';
 import {installSocialUI} from './social-ui.js';
+import {IslandStereo,ORIGINAL_TRACKS} from './stereo.js';
 import {FLOOR_HEIGHT,ROOMS,INTERACTABLES,OBJECT_ACTIONS,interactionInRange} from './world-layout.js';
 import {pathToObject} from './navigation.js';
 import {NEED_KEYS,NEED_META,clampNeed} from './needs.js';
@@ -23,7 +24,7 @@ catch (error) {
  scene=new HouseScene(el.world,{forceCanvas2D:true});
 }
 if(scene.available){scene.setMode('lower');scene.camera.eye=[32,58,50];scene.camera.target=[0,0,2];} // overview behind welcome screen
-const state={role:'viewer',actorId:null,selected:null,camera:'room',tab:'gist',name:'Lagos Legend',profile:{coins:1200,owned:['lagos-tee','denim'],outfit:'lagos-tee',skin:3,hair:1,votedPhase:''},items:[],templates:[],rooms:ROOMS,cast:[],feed:[],requests:[],votes:{},phase:null,connected:false,joined:false,paymentsEnabled:false,paymentToken:null,apiOrigin:location.origin,wing:'male',roomFloor:0,needs:null,objects:INTERACTABLES,socialInvites:[],selectedObject:null,personalMetrics:null,roomMessages:[],voiceNotes:[],selectedPerson:null};
+const state={role:'viewer',actorId:null,selected:null,camera:'room',tab:'gist',name:'Lagos Legend',profile:{coins:1200,owned:['lagos-tee','denim'],outfit:'lagos-tee',skin:3,hair:1,votedPhase:''},items:[],templates:[],rooms:ROOMS,cast:[],feed:[],requests:[],votes:{},phase:null,connected:false,joined:false,paymentsEnabled:false,paymentToken:null,apiOrigin:location.origin,wing:'male',roomFloor:0,needs:null,objects:INTERACTABLES,devices:{},roomLights:{},socialInvites:[],selectedObject:null,personalMetrics:null,roomMessages:[],voiceNotes:[],selectedPerson:null};
 const skins=['#f0bc96','#cf936f','#a76b4c','#784832','#513324','#31221c'];
 const hairNames=['Fresh fade','Natural curls','Braids','Headwrap'];
 const emoji={host:'✳',chat:'✉',request:'☝',gift:'🎁',event:'✦'};
@@ -35,6 +36,7 @@ const socialUI=installSocialUI({state,send,notice:notify,escape,scene,voiceNotes
 function renderRoomMessages(){socialUI.renderRoomMessages();}
 function receiveVoiceNote(data){socialUI.receiveVoiceNote(data);}
 function showPersonMenu(id){socialUI.showPersonMenu(id);}
+const stereo=new IslandStereo();
 function notify(message){el.toast.textContent=message;el.toast.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.toast.classList.remove('show'),2100);}
 function dismissToast(){clearTimeout(toastTimer);el.toast.classList.remove('show');}
 function send(type,data={}){if(socket?.readyState===WebSocket.OPEN)socket.send(JSON.stringify({type,...data}));}
@@ -69,7 +71,10 @@ async function connect(role){
    renderUI(true);return;
   }
   if(data.type==='snapshot'){
-   state.cast=data.cast||[];state.feed=data.feed||[];state.requests=data.requests||[];state.socialInvites=data.socialInvites||[];state.roomMessages=data.roomMessages||[];state.personalMetrics=data.personalMetrics||null;state.votes=data.votes||{};state.phase=data.phase;renderSocialInvite();renderRoomMessages();
+   state.cast=data.cast||[];state.devices=Object.fromEntries((data.devices||[]).map(d=>[d.id,d]));state.roomLights=data.roomLights||{};scene.devices=state.devices;scene.roomLights=state.roomLights;
+   const listener=state.cast.find(a=>a.id===state.actorId);const listeningRoom=state.role==='housemate'?listener?.room:(state.camera==='room'?scene.room:null);
+   stereo.sync({...(state.devices['music-stereo']||{}),room:listeningRoom});
+   state.feed=data.feed||[];state.requests=data.requests||[];state.socialInvites=data.socialInvites||[];state.roomMessages=data.roomMessages||[];state.personalMetrics=data.personalMetrics||null;state.votes=data.votes||{};state.phase=data.phase;renderSocialInvite();renderRoomMessages();
    if(!state.cast.some(a=>a.id===state.selected))state.selected=state.cast[0]?.id||null;
    scene.targetActor=state.role==='housemate'?state.actorId:state.selected;scene.setActors(state.cast);scene.items=state.items;if(state.role==='housemate')voice.sync(state.actorId,state.cast);
    if(state.joined && (data.feed?.[0]?.id!==lastFeedId||data.cast?.length!==state.previousCastCount)){state.previousCastCount=data.cast?.length||0;lastFeedId=data.feed[0]?.id;renderUI(true);}
@@ -78,12 +83,12 @@ async function connect(role){
   if(data.type==='voice-signal'){void voice.onSignal(data);return;}
   if(data.type==='voice-note-result'){notify(data.ok?'Voice note delivered to this room.':data.reason||'Voice note failed.');return;}
   if(data.type==='voice-note'){receiveVoiceNote(data);return;}
-  if(data.type==='action-result'){notify(data.message||(data.ok?'Done.':'Action unavailable.'));if(!data.ok){autoRoute=null;queuedAction=null;}return;}
+  if(data.type==='action-result'){notify(data.message||(data.ok?'Done.':'Action unavailable.'));if(data.ok&&data.openPanel==='shop')setTab('shop');if(!data.ok){autoRoute=null;queuedAction=null;}return;}
   if(data.type==='profile'){state.profile=data.profile;el.coin.textContent=Number(state.profile.coins).toLocaleString();if(state.tab==='shop')renderPanel();}
  });
  ws.addEventListener('close',()=>{
   if(socket!==ws)return;
-  state.connected=false;voice.disable(false);voiceNotes.cancel();$('voice-toggle').classList.remove('active');$('voice-toggle').textContent='🎙 Voice off';
+  state.connected=false;stereo.sync({powered:false});voice.disable(false);voiceNotes.cancel();$('voice-toggle').classList.remove('active');$('voice-toggle').textContent='🎙 Voice off';
   if(state.joined){socialUI.cleanup();notify('Connection lost. Reconnecting...');clearTimeout(retryTimer);retryTimer=setTimeout(()=>{if(!state.connected){state.joined=false;connectWithoutDialog();}},2400);}
   else{$('join-viewer').disabled=false;$('join-housemate').disabled=false;notify('Could not connect. Try again.');}
  });
@@ -114,7 +119,7 @@ function closeDrawers(){
  $('cast-panel').classList.remove('is-open');el.panelRoot.classList.remove('is-open');
  $('drawer-backdrop').hidden=true;$('open-menu').setAttribute('aria-expanded','false');
 }
-function closeObjectMenu(){const menu=$('object-popover');menu.hidden=true;state.selectedObject=null;}
+function closeObjectMenu(){const menu=$('object-popover');menu.hidden=true;state.selectedObject=null;scene.selectedObject=null;}
 function closeAllMenus(){closeDrawers();el.rooms.hidden=true;$('camera-flyout').hidden=true;$('activities-flyout').hidden=true;$('room-chat').hidden=true;$('person-popover').hidden=true;closeObjectMenu();$('quick-view').setAttribute('aria-expanded','false');}
 function openDrawer(kind){
  dismissToast();$('room-chat').hidden=true;$('person-popover').hidden=true;closeObjectMenu();el.rooms.hidden=true;$('camera-flyout').hidden=true;$('activities-flyout').hidden=true;
@@ -342,17 +347,25 @@ $('social-invite').addEventListener('click',e=>{
 });
 function showObjectMenu(object,x,y){
  if(state.role!=='housemate')return;
- closeAllMenus();state.selectedObject=object.id;
+ closeAllMenus();state.selectedObject=object.id;scene.selectedObject=object.id;
  const pane=$('object-popover'),me=currentPlayer();
  const occupants=state.cast.filter(a=>!a.hidden&&a.id!==state.actorId&&a.objectId===object.id&&a.pose);
  const nearby=interactionInRange(me,object);
+ const isTv=['remote','tv','projector'].includes(object.kind),isMusic=['stereo','speaker','mixer'].includes(object.kind);
+ const appliance=isTv?state.devices[object.room==='cinema'?'cinema-screen':'lounge-tv']:isMusic?state.devices['music-stereo']:null;
+ const active=appliance?.powered,track=ORIGINAL_TRACKS[appliance?.track||0];
  pane.style.setProperty('--tap-x',`${x+12}px`);pane.style.setProperty('--tap-y',`${y+12}px`);
- pane.innerHTML=`<div class="object-title"><div><small>TAP TO INTERACT</small><strong>${escape(object.label)}</strong></div><button type="button" data-close-object aria-label="Close furniture options">✕</button></div>`+
- object.actions.filter(a=>a!=='cuddle'||occupants.length>0).map(key=>{
-  const action=OBJECT_ACTIONS[key];
-  if(key==='cuddle')return occupants.map(a=>`<button type="button" class="object-action" data-object-choice="${key}" data-social-target="${escape(a.id)}"><span>♡</span><div>Ask ${escape(a.name)} to cuddle<small>They must accept first</small></div></button>`).join('');
-  return `<button type="button" class="object-action" data-object-choice="${key}"><span>${action.icon}</span><div>${escape(action.label)}<small>${nearby?'Available now':'Your character will walk over'}</small></div></button>`;
- }).join('')+(!nearby?'<p class="object-hint">Your character will walk over automatically. Tap WASD or the joystick to cancel walking.</p>':'');
+ const status=appliance?`<div class="object-status"><span class="status-light ${active?'on':''}"></span>${active?isMusic?`Playing ${escape(track)}`:`TV on · Channel ${Number(appliance.channel||0)+1}`:'Switched off'}</div>`:'';
+ const options=[...new Set([...object.actions,'inspect'])].filter(a=>a!=='cuddle'||occupants.length>0).map(key=>{
+  const action=OBJECT_ACTIONS[key];if(!action)return '';
+  if(key==='cuddle')return occupants.map(a=>`<button type="button" class="object-action" data-object-choice="${key}" data-social-target="${escape(a.id)}"><span>♡</span><div>Ask ${escape(a.name)} to cuddle<small>Requires their consent</small></div></button>`).join('');
+  const liveLabel=key==='tv_power'?`Turn TV ${active?'off':'on'}`:key==='music_toggle'?`${active?'Pause':'Play'} music`:key==='music_next'?`Next track`:action.label;
+  const hint=key==='inspect'?'View object details':nearby?'Your housemate will perform this':'Walk over to interact';
+  return `<button type="button" class="object-action" data-object-choice="${key}"><span>${action.icon}</span><div>${escape(liveLabel)}<small>${hint}</small></div></button>`;
+ }).join('');
+ pane.innerHTML=`<div class="object-title"><div><small>OBJECT INTERACTIONS</small><strong>${escape(object.label)}</strong></div><button type="button" data-close-object aria-label="Close object options">✕</button></div>`+status+
+ `<div class="object-action-list">${options}</div>`+(isMusic?`<button type="button" class="object-sound" data-toggle-sound>${stereo.enabled?'🔇 Mute local sound':'🔊 Enable sound'}<small>Original in-game music · only heard in the studio</small></button>`:'')+
+ (!nearby?'<p class="object-hint">Your character will walk over. Use WASD or the joystick to cancel.</p>':'');
  pane.hidden=false;
 }
 function startObjectAction(obj,key,targetId){
@@ -368,8 +381,13 @@ function startObjectAction(obj,key,targetId){
 }
 $('object-popover').addEventListener('click',e=>{
  if(e.target.closest('[data-close-object]')){closeObjectMenu();return;}
+ if(e.target.closest('[data-toggle-sound]')){
+  if(stereo.enabled){stereo.mute();notify('Studio sound muted on this device.');}else{void stereo.enable().then(ok=>{notify(ok?'Studio sound enabled.':'Sound is unavailable in this browser.');const me=currentPlayer();stereo.sync({...(state.devices['music-stereo']||{}),room:me?.room});});}
+  const obj=state.objects.find(o=>o.id===state.selectedObject);if(obj)showObjectMenu(obj,e.clientX,e.clientY);return;
+ }
  const b=e.target.closest('[data-object-choice]');if(!b)return;
  const obj=state.objects.find(o=>o.id===state.selectedObject);if(!obj)return;
+ if(['music_toggle','music_next'].includes(b.dataset.objectChoice)&&!stereo.enabled)void stereo.enable().then(()=>{stereo.sync({...(state.devices['music-stereo']||{}),room:currentPlayer()?.room});});
  startObjectAction(obj,b.dataset.objectChoice,b.dataset.socialTarget||null);closeObjectMenu();
 });
 const held=new Set();const axes={x:0,z:0};let pointerStart=null,joystickPointer=null;
@@ -461,7 +479,7 @@ function recoverRenderer(error){
  try{
   const compatible=new HouseScene(freshCanvas,{forceCanvas2D:true});
   compatible.localActorId=old.localActorId;compatible.targetActor=old.targetActor;
-  compatible.items=state.items;compatible.room=old.room;compatible.setMode(old.cameraMode);
+  compatible.items=state.items;compatible.devices=state.devices;compatible.roomLights=state.roomLights;compatible.selectedObject=state.selectedObject;compatible.room=old.room;compatible.setMode(old.cameraMode);
   compatible.zoom=old.zoom;compatible.orbit=old.orbit;compatible.heading=old.heading;
   compatible.camera={eye:[...old.camera.eye],target:[...old.camera.target]};
   compatible.setActors(state.cast.filter(a=>!a.hidden&&Number.isFinite(a.x)&&Number.isFinite(a.z)));
