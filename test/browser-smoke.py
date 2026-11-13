@@ -102,6 +102,8 @@ with sync_playwright() as p:
         assert page.locator('#needs-hud').is_visible(), 'needs HUD hidden'
         assert page.locator('#needs-hud .need-row').count()==4, 'four needs required'
         assert not errors, f'uncaught errors: {errors}'
+        # Capture settled gameplay, after nonblocking compatibility notices fade out.
+        page.wait_for_timeout(2300)
         suffix=f'{width}x{height}'+('-recovery' if crash else '')
         page.screenshot(path=str(OUT / f'housemate-{suffix}.png'))
         page.locator('#interact-action').click()
