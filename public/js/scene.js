@@ -12,6 +12,17 @@ const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
 const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
 const norm=a=>{const n=Math.hypot(...a)||1;return a.map(x=>x/n);};
+/** Camera-facing axes for spheres in the lightweight 2D fallback.
+ * World-X projected into a side-on camera collapses to ~0 pixels; this was
+ * producing black vertical hair streaks and detached, paper-thin limbs. */
+export function billboardAxes(eye,target){
+ const forward=norm(sub(target,eye));
+ let right=cross([0,1,0],forward);
+ if(Math.hypot(...right)<1e-5)right=[1,0,0];
+ right=norm(right);
+ const up=norm(cross(forward,right));
+ return {right,up,forward};
+}
 function perspective(fov,aspect,near,far){const f=1/Math.tan(fov/2);return [f/aspect,0,0,0,0,f,0,0,0,0,(far+near)/(near-far),-1,0,0,2*far*near/(near-far),0];}
 function orthographic(width,aspect,near,far){const h=width/aspect;return [2/width,0,0,0,0,2/h,0,0,0,0,-2/(far-near),0,0,0,-(far+near)/(far-near),1];}
 function lookAt(eye,target){const z=norm(sub(eye,target)),x=norm(cross([0,1,0],z)),y=cross(z,x);return [x[0],y[0],z[0],0,x[1],y[1],z[1],0,x[2],y[2],z[2],0,-dot(x,eye),-dot(y,eye),-dot(z,eye),1];}
@@ -87,18 +98,8 @@ class Mesh {
 }
 import {ROOMS,WALLS,FURNITURE,COLS,ROWS,ROOM_BY_ID,FLOOR_HEIGHT,canStand,roomAt,advanceActor,INTERACTABLES,OBJECT_BY_ID} from './world-layout.js';
 import {advanceGait,gestureProgress} from './motion.js';
-/** Camera only collides with structural walls, not small furniture or players.
- * Otherwise each chair produces a sudden camera zoom as the player passes it. */
-function cameraClear(x,z,floor,roomId){
- if(roomAt(x,z,floor)?.id!==roomId)return false;
- for(const wall of WALLS){
-  if(wall.floor!==floor)continue;
-  const cx=Math.max(wall.x-wall.w/2,Math.min(x,wall.x+wall.w/2));
-  const cz=Math.max(wall.z-wall.d/2,Math.min(z,wall.z+wall.d/2));
-  if(Math.hypot(x-cx,z-cz)<.24)return false;
- }
- return true;
-}
+import {clampCameraToWalls,wallSeparates} from './camera-occlusion.js';
+// The follow camera uses segment-to-wall tests instead of endpoint checks.
 function buildWorld(floor=0){
  const g=new Mesh(),Y=floor*FLOOR_HEIGHT;
  const box=(x,y,z,w,h,d,c,rot=0)=>g.box(x,y+Y,z,w,h,d,c,rot);
@@ -515,7 +516,7 @@ function addDeviceVisuals(mesh,devices,roomLights,floor,time,selectedId,hoveredI
   const on=roomLights?.[o.room]!==false;
   mesh.sphere(o.x,2.65+floor*FLOOR_HEIGHT,o.z,.28,on?'#fff1bd':'#695e67',12,8,[1,.65,1]);
  }
- // Hover affordance is quieter than an active selection and appears only on pointer-capable devices.
+ // Show a quieter highlight on pointer hover, and keep selected-object emphasis.
  const indicatorId=selectedId||hoveredId;
  if(indicatorId){
   const o=OBJECT_BY_ID[indicatorId];
@@ -792,29 +793,35 @@ void main(){
   floor=floor||0;this.viewFloor=floor;
   const base=floor*FLOOR_HEIGHT;
   let eye,to;
+  this.cameraHidesTarget=this.cameraMode==='firstperson';
   if(isPlayer&&target){
-   // Camera direction is player-controlled, not reset by each movement keypress.
+   // Rotate the view without changing the character's walking direction.
    const yaw=this.heading+this.orbit;
    if(this.cameraMode==='firstperson'){
     eye=[a.x,base+1.89,a.z];to=[a.x+Math.sin(yaw)*7,base+1.84,a.z+Math.cos(yaw)*7];
    }else if(this.cameraMode==='topdown'){
     eye=[a.x+2,base+13*this.zoom,a.z+1.8];to=[a.x,base+.8,a.z];
    }else{
-    // A phone's narrow aspect ratio needs more context around the avatar;
-    // preserve the existing walking gait and orientation as camera-only work.
     const phoneFollow=this.width<650&&this.cameraMode==='follow';
     const d=(this.cameraMode==='shoulder'?3.6:this.cameraMode==='orbit'?5.4:5.5)*(phoneFollow?1.22:1)*this.zoom;
     const sx=this.cameraMode==='shoulder'?.95:phoneFollow?.38:.55;
-    let dist=d;
-    while(dist>1.25){const ex=a.x-Math.sin(yaw)*dist+Math.cos(yaw)*sx,ez=a.z-Math.cos(yaw)*dist-Math.sin(yaw)*sx;
-     if(cameraClear(ex,ez,floor,a.room))break;
-     dist-=.32;
-    }
-    // Restricted vertical orbit preserves ceiling clearance and stable composition.
-    const cameraLift=this.cameraMode==='orbit'?this.pitch:this.pitch*.45;
-    eye=[a.x-Math.sin(yaw)*dist+Math.cos(yaw)*sx,base+(phoneFollow?3.55:3.25)+clamp(cameraLift,-.2,.75),a.z-Math.cos(yaw)*dist-Math.sin(yaw)*sx];
+    const desired={x:a.x-Math.sin(yaw)*d+Math.cos(yaw)*sx,
+                   z:a.z-Math.cos(yaw)*d-Math.sin(yaw)*sx};
+    // The entire eye-to-player segment must stay clear. The old code only
+    // checked the endpoint and could put an opaque wall between both.
+    const visible=clampCameraToWalls(a,desired,WALLS,floor);
+    const clearance=clamp((visible.distance-1.25)/.95,0,1);
+    // As the camera arm shortens, rise slightly ABOVE seat backs rather than
+    // dropping into them. Keep the eye below the room's ceiling.
+    // Preserve PR #5 structural wall collision and emergency camera lift,
+    // while supporting bounded up/down drag in follow, shoulder and orbit modes.
+    const pitchLift=this.cameraMode==='orbit'?clamp(this.pitch,-.35,.50):clamp(this.pitch*.45,-.20,.35);
+    eye=[visible.x,base+3.55-.30*clearance+pitchLift,visible.z];
     const lookAhead=phoneFollow?1.80:1.15;
     to=[a.x+Math.sin(yaw)*lookAhead,base+1.25,a.z+Math.cos(yaw)*lookAhead];
+    // At a wall, temporarily use a near-eye camera rather than drawing the
+    // avatar as disjoint shapes through opaque geometry.
+    this.cameraHidesTarget=visible.distance<1.85;
    }
   }else if(this.cameraMode==='upper'||this.cameraMode==='lower'){
    eye=[36*Math.sin(.55+this.orbit),base+57*this.zoom,43*Math.cos(.55+this.orbit)+(floor===0?7:-12)];
@@ -833,14 +840,31 @@ void main(){
    this.camera.target=this.camera.target.map((v,i)=>mix(v,to[i],alpha));
    if(this.cameraSnap&&(!isPlayer||target))this.cameraSnap=false;
   }
+  // Smoothing between two clear eye targets can cross a wall. Correct
+  // the interpolated position, not just the intended camera destination.
+  if(isPlayer&&target&&!['firstperson','topdown'].includes(this.cameraMode)){
+   const actual=clampCameraToWalls(target,{x:this.camera.eye[0],z:this.camera.eye[2]},WALLS,floor);
+   if(actual.blocked){this.camera.eye[0]=actual.x;this.camera.eye[2]=actual.z;}
+   if(Math.hypot(this.camera.eye[0]-target.x,this.camera.eye[2]-target.z)<1.85)
+    this.cameraHidesTarget=true;
+  }
   this.lastCameraTime=time;
   this.view=lookAt(this.camera.eye,this.camera.target);
   this.proj=['upper','lower','topdown'].includes(this.cameraMode)?orthographic((this.cameraMode==='topdown'?30:104)*this.zoom,this.width/this.height,.1,260):perspective(this.cameraMode==='firstperson'?1.12:this.cameraMode==='room'?1.04:this.width<650?1.30:1.08,this.width/this.height,.1,260);
  }
+ actorVisible(actor,floor){
+  if(actor.floor!==floor||actor.hidden)return false;
+  if(actor.id===this.targetActor&&this.cameraHidesTarget)return false;
+  // Canvas2D has no depth buffer. Do not render dismembered silhouettes
+  // through architectural walls; overhead views remain unrestricted.
+  if(['follow','shoulder','orbit','firstperson','room','director'].includes(this.cameraMode)
+     &&wallSeparates({x:this.camera.eye[0],z:this.camera.eye[2]},actor,WALLS,floor))return false;
+  return true;
+ }
  frame(time){if(!this.available)return;this.resize();this.animateActors(performance.now());this.cameraFor(time);
   if(!this.gl){this.fallbackFrame(time);return;}const gl=this.gl;
   const floor=this.viewFloor;
-  let mesh=new Mesh();addDeviceVisuals(mesh,this.devices,this.roomLights,floor,time,this.selectedObject,this.hoveredObject);for(const a of this.actors.filter(a=>a.floor===floor&&!a.hidden)){
+  let mesh=new Mesh();addDeviceVisuals(mesh,this.devices,this.roomLights,floor,time,this.selectedObject,this.hoveredObject);for(const a of this.actors.filter(a=>this.actorVisible(a,floor))){
     const piece=new Mesh();addCharacter(piece,a,this.items,time,this.actors);
     const water=a.room==='pool'&&Math.abs(a.x+24)<5&&Math.abs(a.z-23)<3.6?-.55:0;const offset=(a.floor||0)*FLOOR_HEIGHT+water;
     for(let i=1;i<piece.data.length;i+=9)piece.data[i]+=offset;
@@ -862,10 +886,17 @@ void main(){
   if(performance.now()-this.lastFallback<66)return;
   const ctx=this.ctx,w=this.canvas.width,h=this.canvas.height;
   this.lastFallback=performance.now();
-  const dynamic=new Mesh();addDeviceVisuals(dynamic,this.devices,this.roomLights,this.viewFloor,time,this.selectedObject,this.hoveredObject);for(const a of this.actors.filter(a=>a.floor===this.viewFloor&&!a.hidden)){const part=new Mesh();addCharacter(part,a,this.items,time,this.actors);for(const shape of part.shapes)shape.y+=(a.floor||0)*FLOOR_HEIGHT+(a.room==='pool'&&Math.abs(a.x+24)<5&&Math.abs(a.z-23)<3.6?-.55:0);dynamic.shapes.push(...part.shapes);}
+  const dynamic=new Mesh();
+  addDeviceVisuals(dynamic,this.devices,this.roomLights,this.viewFloor,time,this.selectedObject,this.hoveredObject);
+  const avatars=[];
+  for(const a of this.actors.filter(a=>this.actorVisible(a,this.viewFloor))){
+   const part=new Mesh();addCharacter(part,a,this.items,time,this.actors);
+   for(const shape of part.shapes)shape.y+=(a.floor||0)*FLOOR_HEIGHT+(a.room==='pool'&&Math.abs(a.x+24)<5&&Math.abs(a.z-23)<3.6?-.55:0);
+   avatars.push({actor:a,shapes:part.shapes});
+  }
   const floor=this.viewFloor;const shapes=[...this.staticCpu[floor],...(['room','follow','firstperson','orbit','shoulder','director'].includes(this.cameraMode)?this.roofCpu[floor]:[]),...(['lower','upper','topdown'].includes(this.cameraMode)?this.privacyCpu[floor]:[]),...dynamic.shapes];
   const eye=this.camera.eye;
-  const forward=norm(sub(this.camera.target,eye));
+  const {forward,right:billboardRight,up:billboardUp}=billboardAxes(eye,this.camera.target);
   const depthOf=o=>dot([o.x-eye[0],o.y-eye[1],o.z-eye[2]],forward);
   const isFloor=s=>s.type==='box'&&s.h<=1&&s.w>5&&s.d>3;
   shapes.sort((a,b)=>{
@@ -879,9 +910,23 @@ void main(){
   const faceColor=(hex,k=1)=>`rgb(${color(hex,k).join(',')})`;
   const poly=(pts,col)=>{if(pts.some(p=>!p))return;ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(...pts[0]);for(let i=1;i<pts.length;i++)ctx.lineTo(...pts[i]);ctx.closePath();ctx.fill();};
   ctx.fillStyle='#a7dfe7';ctx.fillRect(0,0,w,h);
-  for(const s of shapes){
+  // Canvas2D has no per-pixel depth buffer. Sort the house separately, then
+  // composite each actor's *complete* authored pose in a dedicated layer.
+  // Interleaving individual limbs with large wall/sofa meshes produced the
+  // reported floating face and detached arms. Structural wall occlusion is
+  // handled before this pass by actorVisible().
+  const orderedAvatars=avatars.sort((a,b)=>
+   depthOf({x:b.actor.x,y:(b.actor.floor||0)*FLOOR_HEIGHT+1.2,z:b.actor.z})-
+   depthOf({x:a.actor.x,y:(a.actor.floor||0)*FLOOR_HEIGHT+1.2,z:a.actor.z}));
+  const renderShapes=[...shapes,...orderedAvatars.flatMap(group=>group.shapes)];
+  for(const s of renderShapes){
    if(s.type==='sphere'){
-    const p=toScreen(s.x,s.y,s.z);const px=toScreen(s.x+s.r*s.scale[0],s.y,s.z),py=toScreen(s.x,s.y+s.r*s.scale[1],s.z);
+    const p=toScreen(s.x,s.y,s.z);
+    const scale=s.scale||[1,1,1];
+    const rx=s.r*Math.hypot(billboardRight[0]*scale[0],billboardRight[1]*scale[1],billboardRight[2]*scale[2]);
+    const ry=s.r*Math.hypot(billboardUp[0]*scale[0],billboardUp[1]*scale[1],billboardUp[2]*scale[2]);
+    const px=toScreen(s.x+billboardRight[0]*rx,s.y+billboardRight[1]*rx,s.z+billboardRight[2]*rx);
+    const py=toScreen(s.x+billboardUp[0]*ry,s.y+billboardUp[1]*ry,s.z+billboardUp[2]*ry);
     if(!p||!px||!py)continue;
     const rw=Math.max(.5,Math.hypot(px[0]-p[0],px[1]-p[1])),rh=Math.max(.5,Math.hypot(py[0]-p[0],py[1]-p[1]));
     ctx.beginPath();ctx.ellipse(p[0],p[1],rw,rh,0,0,2*Math.PI);ctx.fillStyle=faceColor(s.col,1.0);ctx.fill();continue;
