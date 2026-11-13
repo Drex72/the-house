@@ -3,10 +3,12 @@ import {createReadStream, existsSync, statSync} from 'node:fs';
 import {resolve, extname, sep} from 'node:path';
 import {createHash, randomUUID} from 'node:crypto';
 import {createGame,cleanText,ITEMS} from './game.mjs';
+import {createVoiceNoteRelay} from './voice-notes.mjs';
 const PORT=Number(process.env.PORT||3000);
 const ROOT=resolve(import.meta.dirname,'../public');
 const MIME={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.json':'application/json'};
 const game=createGame();
+const relayVoiceNote=createVoiceNoteRelay();
 // Optional cross-origin browser hosts for a Vercel frontend with a separate persistent backend.
 const ALLOWED_ORIGIN_HOSTS=new Set(String(process.env.ALLOWED_ORIGIN_HOSTS||'').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean));
 const clients=new Set();
@@ -130,9 +132,11 @@ server.on('upgrade',(req,socket,head)=>{
      if(from?.voiceEnabled&&target?.voiceEnabled&&from.room===target.room&&from.floor===target.floor&&dest&&body&&['offer','answer','candidate'].includes(body.type)&&JSON.stringify(body).length<6500){
       send(dest,{type:'voice-signal',from:from.id,signal:body});
      }
+    }else if(relayVoiceNote(client,message,game,clients,send)){
+     // No storage or broadcast to viewers; successful notes go to the current room.
     }else{
      const result=game.process(client,message);
-     if(result&&['object-act','leave-object','social-reply'].includes(message.type))send(client,{type:'action-result',...result});
+     if(result&&['object-act','leave-object','social-reply','social-act'].includes(message.type))send(client,{type:'action-result',...result});
      if(!['move','emote'].includes(message.type))send(client,{type:'profile',profile:game.profile(client.profileId)});
     }
    }
