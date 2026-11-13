@@ -218,7 +218,23 @@ function buildWorld(floor=0){
  }
  if(floor===0){
   // Hero lounge: contemporary Nigerian reality television editorial palette.
-  box(-8,.16,-7,11,.05,8.5,'#b65b8a');box(-8,.18,-7,9.6,.04,7,'#ef9e55');
+  // One woven statement rug. Muted terracotta and ivory replace a flat
+  // fluorescent rectangle while keeping the show's orange-purple identity.
+  box(-8,.16,-7,11,.05,8.5,'#8d5874');
+  box(-8,.18,-7,9.65,.04,7.1,'#d1a07e');
+  for(const side of [-1,1]){
+   box(-8+side*4.49,.208,-7,.075,.014,6.85,'#f3dfbb');
+   box(-8,.208,-7+side*3.22,9.25,.014,.075,'#f3dfbb');
+  }
+  // Restrained geometric weaving, flat to the floor with no gameplay collider.
+  for(let i=-2;i<=2;i++){
+   const xx=-8+i*1.62;
+   box(xx,.211,-7,0.84,.014,.84,'#8e6173',PI/4);
+   box(xx,.219,-7,0.50,.013,.50,'#efcf9e',PI/4);
+   for(const sign of [-1,1]){
+    box(xx,.212,-7+sign*1.92,.11,.013,.82,'#ad6a71',PI/6*sign);
+   }
+  }
   seat(-11,-9.1);seat(-4.4,-8.7,'#de6937',true);
   cyl(-8,.45,-6.9,1.45,.40,'#503550',24);cyl(-8,.70,-6.9,1.15,.08,'#694d65',24);
   ball(-8,.88,-6.9,.37,'#e4a853',14,8,[1,.42,.8]);
