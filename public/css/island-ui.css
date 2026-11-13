@@ -189,3 +189,9 @@
 .personal-need>div>i{height:100%;background:#78d0ac;display:block;border-radius:7px}
 .personal-need>b{width:30px;text-align:right}
 @media(max-width:800px){.room-chat{right:9px;left:9px;bottom:77px;width:auto;max-height:54dvh}.room-messages{max-height:22dvh}.scene-speech{max-width:112px;font-size:10px}.personal-stat strong{font-size:17px}}
+
+/* Desktop-only contextual object hint, never another permanent HUD element. */
+.object-hover-hint{position:absolute;z-index:6;pointer-events:none;max-width:190px;padding:8px 11px;border:1px solid #f3e2b65e;border-radius:10px;background:#15383ce8;color:#fff6e8;box-shadow:0 5px 15px #0c30334c;font-size:11px;font-weight:750;line-height:1.3;transform:translate(-50%,calc(-100% - 14px));white-space:nowrap;text-overflow:ellipsis;overflow:hidden}
+.object-hover-hint small{font-size:9px;font-weight:500;color:#b9d9d3;display:block}
+@media (pointer:coarse){.object-hover-hint{display:none!important}}
+@media(prefers-reduced-motion:reduce){.object-hover-hint{transition:none}}
