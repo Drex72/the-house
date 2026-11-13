@@ -1,6 +1,7 @@
 import {HouseScene} from './scene.js';
 import {RoomVoice} from './voice.js';
 import {VoiceNotes} from './voice-notes.js';
+import {installSocialUI} from './social-ui.js';
 import {FLOOR_HEIGHT,ROOMS,INTERACTABLES,OBJECT_ACTIONS,interactionInRange} from './world-layout.js';
 import {pathToObject} from './navigation.js';
 import {NEED_KEYS,NEED_META,clampNeed} from './needs.js';
@@ -30,7 +31,10 @@ let socket,toastTimer,renderAt=0,labelsAt=0,lastFeedId='',lastPanelId='',retryTi
 let autoRoute=null,queuedAction=null,routeFailures=0,lastInviteRendered=null;
 const voice=new RoomVoice(send,notify);
 const voiceNotes=new VoiceNotes(send,notify);
-let roomMessageFingerprint='';
+const socialUI=installSocialUI({state,send,notice:notify,escape,scene,voiceNotes,closeMenus:()=>closeAllMenus(),getPlayer:()=>currentPlayer()});
+function renderRoomMessages(){socialUI.renderRoomMessages();}
+function receiveVoiceNote(data){socialUI.receiveVoiceNote(data);}
+function showPersonMenu(id){socialUI.showPersonMenu(id);}
 function notify(message){el.toast.textContent=message;el.toast.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.toast.classList.remove('show'),2100);}
 function dismissToast(){clearTimeout(toastTimer);el.toast.classList.remove('show');}
 function send(type,data={}){if(socket?.readyState===WebSocket.OPEN)socket.send(JSON.stringify({type,...data}));}
@@ -80,7 +84,7 @@ async function connect(role){
  ws.addEventListener('close',()=>{
   if(socket!==ws)return;
   state.connected=false;voice.disable(false);voiceNotes.cancel();$('voice-toggle').classList.remove('active');$('voice-toggle').textContent='🎙 Voice off';
-  if(state.joined){notify('Connection lost. Reconnecting...');clearTimeout(retryTimer);retryTimer=setTimeout(()=>{if(!state.connected){state.joined=false;connectWithoutDialog();}},2400);}
+  if(state.joined){socialUI.cleanup();notify('Connection lost. Reconnecting...');clearTimeout(retryTimer);retryTimer=setTimeout(()=>{if(!state.connected){state.joined=false;connectWithoutDialog();}},2400);}
   else{$('join-viewer').disabled=false;$('join-housemate').disabled=false;notify('Could not connect. Try again.');}
  });
  ws.addEventListener('error',()=>{if(socket!==ws)return;if(!state.joined)notify('Server unavailable. Start the Node server first.');});
@@ -280,7 +284,7 @@ $('leave-house').addEventListener('click',()=>{
  // Leave explicitly: clear reconnection before closing the socket.
  clearTimeout(retryTimer);retryTimer=null;
  state.joined=false;state.connected=false;
- try{voice.disable(false);voiceNotes.cancel();}catch(error){console.warn('Voice cleanup:',error);}
+ try{voice.disable(false);socialUI.cleanup();}catch(error){console.warn('Voice cleanup:',error);}
  const old=socket;socket=null;
  if(old){try{old.close(1000,'Left game');}catch{}}
  state.actorId=null;state.cast=[];state.selected=null;state.personalMetrics=null;state.roomMessages=[];for(const note of state.voiceNotes)URL.revokeObjectURL(note.url);state.voiceNotes=[];roomMessageFingerprint='';
@@ -328,7 +332,8 @@ function renderSocialInvite(){
  const invite=state.socialInvites[0],element=$('social-invite');if(!element)return;
  const id=invite?.id||null;if(id===lastInviteRendered)return;lastInviteRendered=id;
  element.hidden=state.role!=='housemate'||!invite;if(element.hidden)return;
- element.innerHTML=`<strong>♡ ${escape(invite.fromName)} wants to cuddle</strong><p>They'd like to sit close to you. It's completely your choice.</p><div class="social-invite-actions"><button type="button" data-decline-invite="${escape(invite.id)}">No thanks</button><button type="button" data-accept-invite="${escape(invite.id)}">Accept</button></div>`;
+ const description={cuddle:'cuddle',highfive:'high-five',hug:'hug',dance:'dance together'}[invite.kind||'cuddle']||'interact';
+ element.innerHTML=`<strong>♡ ${escape(invite.fromName)} wants to ${escape(description)}</strong><p>Shared interactions only start with your approval.</p><div class="social-invite-actions"><button type="button" data-decline-invite="${escape(invite.id)}">No thanks</button><button type="button" data-accept-invite="${escape(invite.id)}">Accept</button></div>`;
 }
 $('social-invite').addEventListener('click',e=>{
  const b=e.target.closest('[data-decline-invite],[data-accept-invite]');if(!b)return;
@@ -410,6 +415,13 @@ function installWorldPointerHandlers(canvas){
   const rect=canvas.getBoundingClientRect(),mx=e.clientX-rect.left,my=e.clientY-rect.top;
   if(state.role==='housemate'){
    const me=currentPlayer();if(!me||me.floor!==scene.viewFloor)return;
+   let closest=null,nearest=43;
+   for(const other of state.cast.filter(a=>!a.hidden&&a.id!==me.id&&a.floor===scene.viewFloor)){
+    const projected=scene.project([other.x,2.3+other.floor*FLOOR_HEIGHT,other.z]);
+    if(!projected)continue;const dist=Math.hypot(mx-projected[0],my-projected[1]);
+    if(dist<nearest){nearest=dist;closest=other;}
+   }
+   if(closest){showPersonMenu(closest.id);return;}
    const objects=state.objects.filter(o=>o.floor===me.floor&&o.room===me.room);
    const item=scene.pickObject(mx,my,objects);
    if(item){showObjectMenu(item,e.clientX,e.clientY);return;}
