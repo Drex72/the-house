@@ -37,7 +37,7 @@ export function boundedMove(actor,input,dt,otherActors=[]){return advanceActor(a
 export function createGame(){
  const startedAt=Date.now()-132000;
  /** No computer-controlled or synthetic participants. The cast is exactly active sockets. */
- const cast=[];const profiles=new Map(),requests=[],votes=new Map(),socialInvites=[];
+ const cast=[];const profiles=new Map(),requests=[],votes=new Map(),socialInvites=[],roomMessages=[];
  const feed=[{id:'welcome',type:'host',name:'Oga House',text:'Ẹ káàbọ̀! Explore the house, invite friends and apply to be a housemate.',time:Date.now()}];
  let seq=0,lastPhase='';
  function profile(id){let p=profiles.get(id);if(!p){p={id,coins:1200,owned:['lagos-tee','denim'],outfit:'lagos-tee',skin:3,hair:1,name:'Guest',votedPhase:'',lastRequest:0,wing:null,activityWins:0};profiles.set(id,p);}return p;}
@@ -50,8 +50,8 @@ export function createGame(){
     const here=ROOM_BY_ID[room],owner=client?.actorId===id;
     const hidden=!owner && (here?.access==='private'||here?.access==='male-private'||here?.access==='female-private');
     return {id,name,skin,hair,outfit,x:hidden?null:x,z:hidden?null:z,angle,walking,emote,fame,line,room: hidden?'private':room,
-      activity:hidden?'':activity,pose:hidden?'':a.pose,objectId:hidden?null:a.objectId,seatIndex:a.objectId?cast.filter(p=>p.objectId===a.objectId).findIndex(p=>p.id===a.id):0,activityId:hidden?'':a.activityId,activityStarted:hidden?0:a.activityStarted,activityUntil:hidden?0:a.activityUntil,activityLock:owner&&a.activityLock===true,needs:owner?{...a.needs}:null,floor,wing,voiceEnabled,hidden,bot:false};
-  }),requests:requests.filter(x=>x.expires>Date.now()).map(({id,template,text,target,from,votes,status})=>({id,template,text,target,from,votes,status})),socialInvites:client?.actorId?socialInvites.filter(i=>i.targetId===client.actorId&&i.expires>Date.now()).map(i=>({id:i.id,fromId:i.fromId,fromName:i.fromName,objectId:i.objectId,expires:i.expires})):[],votes:totals,feed:feed.slice(0,12)};
+      activity:hidden?'':activity,speech:hidden?null:(a.speech?.until>Date.now()?a.speech:null),socialAnimation:hidden?null:(a.socialAnimation?.until>Date.now()?a.socialAnimation:null),pose:hidden?'':a.pose,objectId:hidden?null:a.objectId,seatIndex:a.objectId?cast.filter(p=>p.objectId===a.objectId).findIndex(p=>p.id===a.id):0,activityId:hidden?'':a.activityId,activityStarted:hidden?0:a.activityStarted,activityUntil:hidden?0:a.activityUntil,activityLock:owner&&a.activityLock===true,needs:owner?{...a.needs}:null,floor,wing,voiceEnabled,hidden,bot:false};
+  }),requests:requests.filter(x=>x.expires>Date.now()).map(({id,template,text,target,from,votes,status})=>({id,template,text,target,from,votes,status})),socialInvites:client?.actorId?socialInvites.filter(i=>i.targetId===client.actorId&&i.expires>Date.now()).map(i=>({id:i.id,fromId:i.fromId,fromName:i.fromName,objectId:i.objectId,kind:i.kind||'cuddle',expires:i.expires})):[],votes:totals,feed:feed.slice(0,12),roomMessages:client?.actorId?roomMessages.filter(m=>{const me=cast.find(a=>a.id===client.actorId);return me&&m.room===me.room&&m.floor===me.floor;}).slice(0,12):[],personalMetrics:client?.actorId?(()=>{const a=cast.find(x=>x.id===client.actorId);if(!a)return null;const p=profile(client.profileId);return {needs:{...a.needs},fame:a.fame,notes:p.coins,activitiesCompleted:p.activityWins,distanceWalked:Math.round(a.stats.distanceWalked),roomMessages:a.stats.messages,voiceNotes:a.stats.voiceNotes,socialInteractions:a.stats.socialInteractions,timeInHouseSeconds:Math.floor((Date.now()-a.joinedAt)/1000)};})():null};
  }
  function join(client,requestedRole,requestedName,requestedWing){
   const p=profile(client.profileId);const safe=cleanText(requestedName,18);
@@ -66,7 +66,7 @@ export function createGame(){
     }
     if(!spawn){for(const room of ROOMS.filter(r=>r.floor===0&&!r.outdoor&&r.public)){if(canStand(room.x,room.z,cast,null,CHARACTER_RADIUS,0,p.wing)){spawn=[room.x,room.z];break;}}}
     if(spawn){
-      const a={id:`player-${++seq}`,owner:client.id,profileId:client.profileId,name:p.name,skin:p.skin,hair:p.hair,outfit:p.outfit,x:spawn[0],z:spawn[1],angle:Math.PI,walking:false,emote:'',fame:0,line:'Here for the cruise.',room:roomAt(...spawn,0).id,floor:0,wing:p.wing,activity:'',activityUntil:0,activityRoom:null,activityLock:false,pose:'',objectId:null,needs:newNeeds(),needsUpdatedAt:Date.now(),voiceEnabled:false,lastMove:Date.now()};
+      const a={id:`player-${++seq}`,owner:client.id,profileId:client.profileId,name:p.name,skin:p.skin,hair:p.hair,outfit:p.outfit,x:spawn[0],z:spawn[1],angle:Math.PI,walking:false,emote:'',fame:0,line:'Here for the cruise.',room:roomAt(...spawn,0).id,floor:0,wing:p.wing,activity:'',activityUntil:0,activityRoom:null,activityLock:false,pose:'',objectId:null,joinedAt:Date.now(),stats:{distanceWalked:0,messages:0,voiceNotes:0,socialInteractions:0},needs:newNeeds(),needsUpdatedAt:Date.now(),voiceEnabled:false,lastMove:Date.now()};
       cast.push(a);client.role='housemate';client.actorId=a.id;
     }
   }
@@ -83,7 +83,9 @@ export function createGame(){
      if(!actor||actor.activityLock&&actor.activityUntil>now)break;
      if(actor.pose)stopPose(actor);
      const dt=Math.min(.11,Math.max(.01,(now-(client.lastMove||now-70))/1000));
-     if(boundedMove(actor,msg,dt,cast))actor.lastMove=now;
+     if(actor.socialAnimation?.until>now)break;
+     const beforeX=actor.x,beforeZ=actor.z;
+     if(boundedMove(actor,msg,dt,cast)){actor.lastMove=now;actor.stats.distanceWalked+=Math.hypot(actor.x-beforeX,actor.z-beforeZ);}
      client.lastMove=now;break;
    }
    case 'emote': if(actor&&['wave','dance','cheer','laugh'].includes(msg.emote)){actor.emote=msg.emote;actor.emoteUntil=now+3000;addFeed('event',actor.name,`${actor.name} is ${msg.emote==='wave'?'waving':msg.emote==='dance'?'dancing':msg.emote==='cheer'?'cheering':'laughing'}!`);}break;
@@ -131,7 +133,7 @@ export function createGame(){
        const other=occupants.find(a=>a.id===String(msg.targetId||'')&&['sitting','lying','cuddling'].includes(a.pose));
        if(!other)return {ok:false,reason:'Someone must already be sitting here to ask them.'};
        if(socialInvites.some(i=>i.targetId===other.id&&i.fromId===actor.id&&i.expires>now))return {ok:false,reason:'Invitation already sent.'};
-       socialInvites.push({id:`social-${++seq}`,fromId:actor.id,fromName:actor.name,targetId:other.id,objectId:obj.id,expires:now+30000});
+       socialInvites.push({id:`social-${++seq}`,kind:'cuddle',fromId:actor.id,fromName:actor.name,targetId:other.id,objectId:obj.id,expires:now+30000});
        client.lastObjectAction=now;
        return {ok:true,message:`Asked ${other.name} to cuddle. Waiting for their answer.`};
      }
@@ -155,6 +157,16 @@ export function createGame(){
      if(i<0)return {ok:false,reason:'Invitation expired.'};
      const [invite]=socialInvites.splice(i,1);
      if(msg.accept!==true)return {ok:true,message:'You declined the invitation.'};
+     if(invite.kind&&invite.kind!=='cuddle'){
+       const from=cast.find(a=>a.id===invite.fromId);
+       if(!from||from.room!==actor.room||from.floor!==actor.floor||Math.hypot(from.x-actor.x,from.z-actor.z)>3.2||from.pose||actor.pose)return {ok:false,reason:'Move closer to the other player.'};
+       const duration=invite.kind==='dance'?6200:invite.kind==='hug'?3800:2500;
+       const animation={kind:invite.kind,startedAt:now,until:now+duration};
+       from.socialAnimation={...animation,partnerId:actor.id};actor.socialAnimation={...animation,partnerId:from.id};
+       from.stats.socialInteractions++;actor.stats.socialInteractions++;
+       addFeed('event','The House',`${from.name} and ${actor.name} ${invite.kind==='hug'?'hugged':invite.kind==='dance'?'started dancing together':'high-fived'}!`);
+       return {ok:true,message:`You accepted ${from.name}'s invitation.`};
+     }
      const from=cast.find(a=>a.id===invite.fromId),obj=OBJECT_BY_ID[invite.objectId];
      if(!from||!obj||!interactionInRange(from,obj)||!interactionInRange(actor,obj)||actor.objectId!==obj.id||!['sitting','lying','cuddling'].includes(actor.pose)||from.activityUntil>now)return {ok:false,reason:'The other player is no longer nearby.'};
      if(from.objectId&&from.objectId!==obj.id)stopPose(from);
@@ -166,13 +178,34 @@ export function createGame(){
    case 'cancel-activity':{
      if(actor&&(actor.activityUntil>now||actor.pose)){stopPose(actor);actor.activityId='';addFeed('event',actor.name,`${actor.name} stopped their activity.`);}break;
    }
+   case 'social-act':{
+     if(!actor)return {ok:false,reason:'Housemates only.'};
+     const kind=String(msg.kind||'');
+     if(!['wave','highfive','hug','dance'].includes(kind))return {ok:false,reason:'Invalid interaction.'};
+     const target=cast.find(a=>a.id===msg.targetId&&a.id!==actor.id);
+     if(!target||target.room!==actor.room||target.floor!==actor.floor||Math.hypot(actor.x-target.x,actor.z-target.z)>3.2||actor.pose||target.pose)return {ok:false,reason:'You must be near another available housemate.'};
+     if(now-(client.lastSocialAct||0)<2000)return {ok:false,reason:'Please wait a moment.'};
+     client.lastSocialAct=now;
+     if(kind==='wave'){actor.emote='wave';actor.emoteUntil=now+2600;return {ok:true,message:`Waved to ${target.name}.`};}
+     if(socialInvites.some(i=>i.fromId===actor.id&&i.targetId===target.id&&i.expires>now))return {ok:false,reason:'An invitation is already pending.'};
+     socialInvites.push({id:`social-${++seq}`,kind,fromId:actor.id,fromName:actor.name,targetId:target.id,expires:now+20000});
+     return {ok:true,message:`Asked ${target.name} to ${kind==='highfive'?'high-five':kind==='hug'?'hug':'dance together'}. Waiting for approval.`};
+   }
+   case 'room-chat':{
+     if(!actor||now-(client.lastRoomChat||0)<1300)break;
+     const text=cleanText(msg.text,105);if(!text)break;
+     client.lastRoomChat=now;actor.stats.messages++;
+     actor.speech={text,until:now+5800};
+     roomMessages.unshift({id:`room-${++seq}`,from:actor.id,name:actor.name,text,room:actor.room,floor:actor.floor,time:now});roomMessages.splice(50);
+     break;
+   }
    case 'voice-toggle':{
      if(actor){actor.voiceEnabled=msg.enabled===true;}
      break;
    }
    case 'chat': {
      if(now-(client.lastChat||0)<2500)break;
-     const s=cleanText(msg.text,140);if(s){client.lastChat=now;addFeed('chat',actor?.name||p.name,s);}break;
+     const s=cleanText(msg.text,140);if(s){client.lastChat=now;addFeed('chat',actor?.name||p.name,s);if(actor){actor.stats.messages++;actor.speech={text:s.slice(0,105),until:now+5600};}}break;
    }
    case 'vote': {
      if(client.role!=='viewer')break;
@@ -222,6 +255,7 @@ export function createGame(){
    if(a.pose==='sleeping')a.needs.energy=Math.min(100,a.needs.energy+elapsed*.001*1.4);
    if(a.pose==='cuddling')a.needs.social=Math.min(100,a.needs.social+elapsed*.001*.75);
    a.walking=now-a.lastMove<210&&!a.activityLock;
+    if(a.socialAnimation?.until<=now)a.socialAnimation=null;
    if(a.emoteUntil<now)a.emote='';
    if(a.activity&&a.activityUntil>0&&a.activityUntil<=now){
     const p=profile(a.profileId),completed=a.room===a.activityRoom;
@@ -231,6 +265,7 @@ export function createGame(){
   }
   for(let i=requests.length-1;i>=0;i--)if(requests[i].expires<now)requests.splice(i,1);
   for(let i=socialInvites.length-1;i>=0;i--)if(socialInvites[i].expires<now)socialInvites.splice(i,1);
+   for(let i=roomMessages.length-1;i>=0;i--)if(roomMessages[i].time<now-90000)roomMessages.splice(i,1);
  }
- return {cast,profile,join,leave,process,tick,snapshot,grantPremium(profileId,itemId){const item=ITEMS.find(it=>it.id===itemId&&it.currency==='NGN');if(!item)return false;const p=profile(profileId);if(p.owned.includes(itemId))return false;p.owned.push(itemId);addFeed('event','Style Boutique',`${p.name} unlocked an exclusive boutique look.`);return true;}};
+ return {cast,profile,join,leave,process,tick,snapshot,recordVoiceNote(client){const a=cast.find(p=>p.owner===client.id);if(a)a.stats.voiceNotes++;},grantPremium(profileId,itemId){const item=ITEMS.find(it=>it.id===itemId&&it.currency==='NGN');if(!item)return false;const p=profile(profileId);if(p.owned.includes(itemId))return false;p.owned.push(itemId);addFeed('event','Style Boutique',`${p.name} unlocked an exclusive boutique look.`);return true;}};
 }
