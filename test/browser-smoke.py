@@ -8,6 +8,7 @@ import base64
 import json
 import re
 import subprocess
+import shutil
 from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -87,7 +88,7 @@ window.WebSocket=FakeSocket;
     return html
 
 with sync_playwright() as p:
-    browser = p.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-webgl','--disable-web-security'])
+    browser = p.chromium.launch(executable_path=shutil.which('chromium') or p.chromium.executable_path,headless=True,args=['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-webgl','--disable-web-security'])
     for width,height,crash in [(1180,740,False),(390,844,False),(1180,740,True)]:
         page = browser.new_page(viewport={'width':width,'height':height},device_scale_factor=1)
         errors=[];logs=[]
