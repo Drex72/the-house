@@ -809,7 +809,9 @@ void main(){
     // checked the endpoint and could put an opaque wall between both.
     const visible=clampCameraToWalls(a,desired,WALLS,floor);
     const clearance=clamp((visible.distance-1.25)/.95,0,1);
-    eye=[visible.x,base+2.0+1.25*clearance+(this.cameraMode==='orbit'?clamp(this.pitch,-.35,.75):0),visible.z];
+    // As the camera arm shortens, rise slightly ABOVE seat backs rather than
+    // dropping into them. Keep the eye below the room's ceiling.
+    eye=[visible.x,base+3.55-.30*clearance+(this.cameraMode==='orbit'?clamp(this.pitch,-.35,.50):0),visible.z];
     const lookAhead=phoneFollow?1.80:1.15;
     to=[a.x+Math.sin(yaw)*lookAhead,base+1.25,a.z+Math.cos(yaw)*lookAhead];
     // At a wall, temporarily use a near-eye camera rather than drawing the
