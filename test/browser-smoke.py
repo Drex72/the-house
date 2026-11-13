@@ -29,12 +29,14 @@ def make_document(simulate_gpu_error=False, debug=False):
     layout = uri(layout_source)
     voice = uri((PUBLIC / 'js/voice.js').read_text())
     motion = uri((PUBLIC / 'js/motion.js').read_text())
+    occlusion = uri((PUBLIC / 'js/camera-occlusion.js').read_text())
     notes = uri((PUBLIC / 'js/voice-notes.js').read_text())
     social = uri((PUBLIC / 'js/social-ui.js').read_text())
     stereo = uri((PUBLIC / 'js/stereo.js').read_text())
     scene_source = ((PUBLIC / 'js/scene.js').read_text()
         .replace("from './world-layout.js'", f"from '{layout}'")
-        .replace("from './motion.js'", f"from '{motion}'"))
+        .replace("from './motion.js'", f"from '{motion}'")
+        .replace("from './camera-occlusion.js'", f"from '{occlusion}'"))
     if simulate_gpu_error:
         # Exactly one WebGL frame throws on first-person join; software fallback must survive.
         scene_source = scene_source.replace(
@@ -54,7 +56,7 @@ def make_document(simulate_gpu_error=False, debug=False):
         .replace("from './voice-notes.js'", f"from '{notes}'")
         .replace("from './social-ui.js'", f"from '{social}'"))
     if debug:
-        app_source = app_source.replace('installWorldPointerHandlers(el.world);', 'installWorldPointerHandlers(el.world);globalThis.__houseScene=scene;globalThis.__houseState=state;')
+        app_source = app_source.replace('installWorldPointerHandlers(el.world);', 'installWorldPointerHandlers(el.world);Object.defineProperty(globalThis,"__houseScene",{configurable:true,get:()=>scene});globalThis.__houseState=state;')
     app = uri(app_source)
     html = (PUBLIC / 'index.html').read_text()
     css = (PUBLIC / 'css/style.css').read_text()+'\n'+(PUBLIC / 'css/island-ui.css').read_text()
