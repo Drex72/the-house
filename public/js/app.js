@@ -354,7 +354,15 @@ function showObjectMenu(object,x,y){
  const isTv=['remote','tv','projector'].includes(object.kind),isMusic=['stereo','speaker','mixer'].includes(object.kind);
  const appliance=isTv?state.devices[object.room==='cinema'?'cinema-screen':'lounge-tv']:isMusic?state.devices['music-stereo']:null;
  const active=appliance?.powered,track=ORIGINAL_TRACKS[appliance?.track||0];
- pane.style.setProperty('--tap-x',`${x+12}px`);pane.style.setProperty('--tap-y',`${y+12}px`);
+ // Keep desktop object actions beside the selected object, not on top of it.
+ // Mobile's existing bottom-sheet media query remains authoritative.
+ const panelWidth=304,edge=16,gap=20;
+ const left=x+gap+panelWidth+edge>innerWidth&&x-panelWidth-gap>=edge
+  ?x-panelWidth-gap:Math.min(innerWidth-panelWidth-edge,x+gap);
+ const top=Math.max(88,Math.min(y-45,innerHeight-370));
+ pane.style.setProperty('--tap-x',`${Math.round(Math.max(edge,left))}px`);
+ pane.style.setProperty('--tap-y',`${Math.round(top)}px`);
+ pane.setAttribute('aria-label',`${object.label} actions`);
  const status=appliance?`<div class="object-status"><span class="status-light ${active?'on':''}"></span>${active?isMusic?`Playing ${escape(track)}`:`TV on · Channel ${Number(appliance.channel||0)+1}`:'Switched off'}</div>`:'';
  const options=[...new Set([...object.actions,'inspect'])].filter(a=>a!=='cuddle'||occupants.length>0).map(key=>{
   const action=OBJECT_ACTIONS[key];if(!action)return '';
