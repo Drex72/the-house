@@ -81,7 +81,7 @@ export function createGame(){
     }
     if(!spawn){for(const room of ROOMS.filter(r=>r.floor===0&&!r.outdoor&&r.public)){if(canStand(room.x,room.z,cast,null,CHARACTER_RADIUS,0,p.wing)){spawn=[room.x,room.z];break;}}}
     if(spawn){
-      const a={id:`player-${++seq}`,owner:client.id,profileId:client.profileId,name:p.name,skin:p.skin,hair:p.hair,outfit:p.outfit,x:spawn[0],z:spawn[1],angle:Math.PI,walking:false,emote:'',fame:0,line:'Here for the cruise.',room:roomAt(...spawn,0).id,floor:0,wing:p.wing,activity:'',activityUntil:0,activityRoom:null,activityLock:false,pose:'',objectId:null,joinedAt:Date.now(),stats:{distanceWalked:0,messages:0,voiceNotes:0,socialInteractions:0},gesture''gestureStartedgestureUntilneeds:newNeeds(),needsUpdatedAt:Date.now(),voiceEnabled:false,lastMove:Date.now()};
+      const a={id:`player-${++seq}`,owner:client.id,profileId:client.profileId,name:p.name,skin:p.skin,hair:p.hair,outfit:p.outfit,x:spawn[0],z:spawn[1],angle:Math.PI,walking:false,emote:'',fame:0,line:'Here for the cruise.',room:roomAt(...spawn,0).id,floor:0,wing:p.wing,activity:'',activityUntil:0,activityRoom:null,activityLock:false,pose:'',objectId:null,joinedAt:Date.now(),stats:{distanceWalked:0,messages:0,voiceNotes:0,socialInteractions:0},gesture:'',gestureStarted:0,gestureUntil:0,poseStarted:0,needs:newNeeds(),needsUpdatedAt:Date.now(),voiceEnabled:false,lastMove:Date.now()};
       cast.push(a);client.role='housemate';client.actorId=a.id;
     }
   }
