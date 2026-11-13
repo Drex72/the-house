@@ -1,0 +1,46 @@
+name: Visual review - housemate and viewer
+on:
+  push:
+    branches: [feature/review-refine-visual-qa]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  visual:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --disable-pip-version-check playwright pillow
+      - run: python -m playwright install --with-deps chromium
+      - name: Verify browser paths and render screenshots
+        run: python test/browser-smoke.py
+      - name: Make desktop and mobile review captures accessible
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: house-visual-review
+          path: artifacts/*.png
+          if-no-files-found: warn
+      - name: Export compressed evidence for visual evaluation
+        if: success()
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+          import base64,io
+          for name in ['housemate-1180x740.png','housemate-390x844.png','compound-overview-1180x740.png','activities-390x844.png']:
+              p=Path('artifacts')/name
+              if not p.exists(): continue
+              img=Image.open(p).convert('RGB')
+              img.thumbnail((900,800))
+              buf=io.BytesIO()
+              img.save(buf,format='JPEG',quality=48,optimize=True)
+              print('VISUAL_CAPTURE_START:'+name+':'+base64.b64encode(buf.getvalue()).decode())
+          PY
