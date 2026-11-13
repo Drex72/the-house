@@ -356,10 +356,11 @@ function showObjectMenu(object,x,y){
  const active=appliance?.powered,track=ORIGINAL_TRACKS[appliance?.track||0];
  // Keep desktop object actions beside the selected object, not on top of it.
  // Mobile's existing bottom-sheet media query remains authoritative.
- const panelWidth=304,edge=16,gap=20;
- const left=x+gap+panelWidth+edge>innerWidth&&x-panelWidth-gap>=edge
-  ?x-panelWidth-gap:Math.min(innerWidth-panelWidth-edge,x+gap);
- const top=Math.max(88,Math.min(y-45,innerHeight-370));
+ const panelWidth=304,edge=24;
+ // Select a side dock based on which half of the scene was clicked. This
+ // preserves the avatar and furniture as the focal point of the 3D viewport.
+ const left=x<innerWidth*.58?innerWidth-panelWidth-edge:edge;
+ const top=Math.max(98,Math.min(y-140,Math.max(98,innerHeight-400)));
  pane.style.setProperty('--tap-x',`${Math.round(Math.max(edge,left))}px`);
  pane.style.setProperty('--tap-y',`${Math.round(top)}px`);
  pane.setAttribute('aria-label',`${object.label} actions`);
