@@ -30,7 +30,8 @@ def make_document(simulate_gpu_error=False, debug=False):
     motion = uri((PUBLIC / 'js/motion.js').read_text())
     notes = uri((PUBLIC / 'js/voice-notes.js').read_text())
     social = uri((PUBLIC / 'js/social-ui.js').read_text())
-    stereostereoscene_source = ((PUBLIC / 'js/scene.js').read_text()
+    stereo = uri((PUBLIC / 'js/stereo.js').read_text())
+    scene_source = ((PUBLIC / 'js/scene.js').read_text()
         .replace("from './world-layout.js'", f"from '{layout}'")
         .replace("from './motion.js'", f"from '{motion}'"))
     if simulate_gpu_error:
