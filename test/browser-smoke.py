@@ -114,8 +114,11 @@ with sync_playwright() as p:
         page.locator('#activity-panel').wait_for(state='visible',timeout=2000)
         assert page.locator('#activity-panel').is_visible()
         page.locator('#close-panel').click()
-        page.locator('#activity-panel').wait_for(state='hidden',timeout=2000)
-        assert not page.locator('#activity-panel').is_visible()
+        page.wait_for_timeout(300)
+        panel_state=page.locator('#activity-panel').evaluate('(e)=>({className:e.className,visibility:getComputedStyle(e).visibility,opacity:getComputedStyle(e).opacity})')
+        print('MENU AFTER CLOSE:',panel_state,flush=True)
+        page.wait_for_function("!document.getElementById('activity-panel').classList.contains('is-open')",timeout=4000)
+        assert panel_state['visibility']=='hidden',f'menu must be hidden after X: {panel_state}'
         if crash:
             assert any('Switching house renderer to compatibility mode' in v for k,v in logs), 'WebGL recovery was not invoked'
             assert page.locator('#world').evaluate("(c)=>c.getContext('2d')!==null"), '2D renderer not active after recovery'
