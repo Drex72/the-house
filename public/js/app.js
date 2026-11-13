@@ -67,7 +67,7 @@ async function connect(role){
    el.overlay.hidden=true;$('room-badge').hidden=false;$('quick-controls').hidden=false;$('quick-explore').hidden=state.role!=='viewer';el.emotes.hidden=true;$('quick-chat').hidden=state.role!=='housemate';el.joystick.hidden=state.role!=='housemate'||!matchMedia('(pointer:coarse)').matches;
    document.querySelectorAll('#camera-buttons [data-camera]').forEach(b=>b.hidden=!(b.dataset.for==='both'||b.dataset.for===state.role));
    $('voice-toggle').hidden=state.role!=='housemate';
-   notify(state.role==='housemate'?'Welcome to the island. Move with WASD or your joystick.':'Welcome to the island. Choose a room or explore downstairs.');
+   notify(state.role==='housemate'?(matchMedia('(pointer:coarse)').matches?'Move with the joystick. Tap furniture to interact; drag the scene to look around.':'Move with WASD. Hover furniture for actions, and drag to adjust the view.'):'Welcome to the island. Choose a room or explore downstairs.');
    renderUI(true);return;
   }
   if(data.type==='snapshot'){
@@ -290,6 +290,7 @@ $('leave-house').addEventListener('click',()=>{
  clearTimeout(retryTimer);retryTimer=null;
  state.joined=false;state.connected=false;
  try{voice.disable(false);socialUI.cleanup();}catch(error){console.warn('Voice cleanup:',error);}
+ clearObjectHover();
  const old=socket;socket=null;
  if(old){try{old.close(1000,'Left game');}catch{}}
  state.actorId=null;state.cast=[];state.selected=null;state.personalMetrics=null;state.roomMessages=[];for(const note of state.voiceNotes)URL.revokeObjectURL(note.url);state.voiceNotes=[];roomMessageFingerprint='';
@@ -528,8 +529,8 @@ function recoverRenderer(error){
  try{
   const compatible=new HouseScene(freshCanvas,{forceCanvas2D:true});
   compatible.localActorId=old.localActorId;compatible.targetActor=old.targetActor;
-  compatible.items=state.items;compatible.devices=state.devices;compatible.roomLights=state.roomLights;compatible.selectedObject=state.selectedObject;compatible.room=old.room;compatible.setMode(old.cameraMode);
-  compatible.zoom=old.zoom;compatible.orbit=old.orbit;compatible.heading=old.heading;
+  compatible.items=state.items;compatible.devices=state.devices;compatible.roomLights=state.roomLights;compatible.selectedObject=state.selectedObject;compatible.room=old.room;compatible.hoveredObject=old.hoveredObject;compatible.setMode(old.cameraMode);
+  compatible.zoom=old.zoom;compatible.orbit=old.orbit;compatible.heading=old.heading;compatible.pitch=old.pitch;
   compatible.camera={eye:[...old.camera.eye],target:[...old.camera.target]};
   compatible.setActors(state.cast.filter(a=>!a.hidden&&Number.isFinite(a.x)&&Number.isFinite(a.z)));
   scene=compatible;installWorldPointerHandlers(freshCanvas);
