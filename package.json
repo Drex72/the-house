@@ -1,0 +1,16 @@
+{
+  "name": "the-house-lagos",
+  "version": "0.8.0",
+  "private": true,
+  "type": "module",
+  "description": "The House V8: stable camera and lighting, clickable furniture, and consent-based shared actions",
+  "scripts": {
+    "start": "node server/index.mjs",
+    "dev": "node --watch server/index.mjs",
+    "test": "node --test test/*.test.mjs",
+    "test:integration": "node test/live-smoke.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

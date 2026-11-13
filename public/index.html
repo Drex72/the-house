@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+ <meta charset="utf-8"/>
+ <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1"/>
+ <meta name="theme-color" content="#142b28"/>
+ <meta name="description" content="The House — a live, Lagos-inspired 3D social reality game. Housemates play. You decide."/>
+ <title>The House · Island Edition</title>
+ <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+ <link rel="manifest" href="/manifest.webmanifest"/>
+ <link rel="stylesheet" href="/css/style.css"/>
+ <link rel="stylesheet" href="/css/island-ui.css"/>
+</head>
+<body>
+ <main id="app" aria-label="The House game">
+  <canvas id="world" aria-label="Interactive island house: tap furniture for context-sensitive actions"></canvas>
+  <div id="scene-labels" aria-hidden="true"></div>
+  <div class="scene-vignette" aria-hidden="true"></div>
+  <header class="topbar">
+   <div class="brand">
+    <div class="brand-icon"><svg viewBox="0 0 36 36" fill="none"><path d="M4 16.5 18 5l14 11.5" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.5 17v14h19V17" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><path d="M15 31V21h6v10" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/></svg></div>
+    <div class="brand-text">THE <b>HOUSE</b><small>ISLAND EDITION</small></div>
+   </div>
+   <div class="top-center"><span class="red-dot"></span><strong>LIVE</strong><span class="top-separator"></span><span id="online-count">0 / 10 real housemates</span></div>
+   <div class="top-actions"><div class="currency" title="Earned Notes. Premium outfits have separate ₦ prices and require verified checkout."><span>✦</span><strong id="coin-count">1,200</strong><small>NOTES</small></div><button type="button" class="profile-bubble" id="open-profile" aria-label="Edit your profile">D</button><button type="button" id="open-menu" class="menu-toggle" aria-label="Open game menu" aria-expanded="false"><span>☰</span> Menu</button></div>
+  </header>
+  <div id="drawer-backdrop" class="drawer-backdrop" hidden></div>
+  <section class="left-panel glass-panel" id="cast-panel" aria-label="Housemates">
+    <div class="drawer-title"><div><small>REAL PLAYERS ONLY</small><h2>Housemates</h2></div><button id="cast-close" class="drawer-close" aria-label="Close housemates">✕</button></div>
+    <div class="cast-overview"><span class="red-dot"></span><span id="phase-name">Round 1 · First impressions</span><span id="phase-clock">04:18</span></div>
+    <div class="phase-progress compact"><span id="phase-progress-bar"></span></div>
+    <p class="drawer-help">Tap someone to follow them around the house.</p>
+    <div id="cast-list" class="cast-list"></div>
+    <button class="subtle-button" id="view-map"><span>⌗</span> Explore rooms <span>→</span></button>
+    <button class="drawer-secondary" id="cast-back">← Back to menu</button>
+  </section>
+  <div id="room-badge" class="room-badge" hidden>🛋️ The Main Lounge</div>
+  <aside id="needs-hud" class="needs-hud" aria-label="Your housemate needs" hidden></aside>
+
+  <div id="object-popover" class="object-popover" role="dialog" aria-label="Furniture actions" hidden></div>
+  <div id="social-invite" class="social-invite" role="group" aria-label="Social interaction invitation" hidden></div>
+  <div id="activities-flyout" class="activities-flyout" hidden></div>
+  <div id="quick-controls" class="quick-controls" hidden>
+    <button id="quick-view" class="quick-pill" type="button" aria-expanded="false">◉ View</button>
+    <button id="quick-explore" class="quick-pill primary" type="button">⌗ Explore</button>
+    <button type="button" id="interact-action" class="interact-action" hidden>✦ Do something</button>
+  </div>
+  <div id="camera-flyout" class="camera-flyout" hidden></div>
+  <div class="scene-caption"><span class="caption-line"></span><span id="camera-caption">EAGLE EYE · THE HOUSE, LAGOS</span></div>
+  <div class="camera-hint" id="camera-hint">DRAG TO ROTATE VIEW · SCROLL TO ZOOM</div>
+  <section class="right-panel glass-panel" id="activity-panel" aria-label="Game activity">
+   <div class="right-heading"><div><span class="eyebrow">INSIDE THE HOUSE</span><h2 id="right-title">The Gist <span>🔥</span></h2></div><button type="button" class="mobile-close" id="close-panel" aria-label="Close game menu">✕</button></div>
+   <button type="button" id="drawer-people" class="drawer-people" aria-label="Show housemates">👥 Housemates <span>View housemates →</span></button>
+   <nav class="panel-tabs" aria-label="Activity categories"><button class="tab active" data-tab="gist">Gist</button><button class="tab" data-tab="vote">Vote</button><button class="tab" data-tab="requests">Requests</button><button class="tab" data-tab="shop">Shop</button></nav>
+   <div id="panel-content" class="panel-content"></div>
+   <button type="button" class="voice-toggle" id="voice-toggle" aria-pressed="false" hidden>🎙 Voice off</button>
+   <button type="button" id="graphics-fallback" class="graphics-option">◐ Switch to compatibility graphics</button>
+   <div class="drawer-footer-actions"><button type="button" id="menu-back">← Back to the game</button><button type="button" id="leave-house">Leave game</button></div>
+   <form id="chat-form" class="chat-composer"><input id="chat-input" maxlength="140" autocomplete="off" placeholder="Drop some gist..." aria-label="Chat message"/><button aria-label="Send message" type="submit">➤</button></form>
+  </section>
+  <nav class="bottom-nav" aria-label="Game controls" hidden>
+   <div class="mode-group" id="camera-buttons">
+    <button data-camera="follow" data-for="both" class="nav-button" title="Follow camera"><span>◉</span><small>Follow</small></button>
+    <button data-camera="room" data-for="viewer" class="nav-button active" title="Select a room"><span>▥</span><small>Rooms</small></button>
+    <button data-camera="lower" data-for="viewer" class="nav-button" title="Downstairs overview"><span>⌂</span><small>Down</small></button>
+    <button data-camera="upper" data-for="viewer" class="nav-button" title="Upstairs overview"><span>⌃</span><small>Up</small></button>
+    <button data-camera="director" data-for="viewer" class="nav-button" title="Auto room director"><span>▣</span><small>Live</small></button>
+    <button data-camera="orbit" data-for="housemate" class="nav-button" title="Orbit camera"><span>⟳</span><small>Orbit</small></button>
+    <button data-camera="shoulder" data-for="housemate" class="nav-button" title="Over-the-shoulder view"><span>◔</span><small>Shoulder</small></button>
+    <button data-camera="firstperson" data-for="housemate" class="nav-button" title="First-person view"><span>⊙</span><small>POV</small></button>
+    <button data-camera="topdown" data-for="housemate" class="nav-button" title="Top-down personal camera"><span>⌗</span><small>Top</small></button>
+   </div>
+   <span class="nav-divider"></span>
+   <div class="action-group">
+    <button id="nav-vote" class="nav-action" title="Vote for a housemate"><span>♡</span><small>Vote</small></button>
+    <button id="nav-gift" class="nav-action" title="Send gifts"><span>✦</span><small>Gift</small></button>
+    <button id="nav-shop" class="nav-action" title="Clothing store"><span>◈</span><small>Shop</small></button>
+    <button id="nav-gist" class="nav-action mobile-only" title="Open live chat"><span>☷</span><small>Gist</small></button>
+   </div>
+  </nav>
+  <div id="rooms-flyout" class="rooms-flyout" hidden></div>
+  <div id="emote-controls" class="emote-controls" hidden><button data-emote="wave">👋 <span>Wave</span></button><button data-emote="dance">💃 <span>Dance</span></button><button data-emote="cheer">🙌 <span>Cheer</span></button><button data-emote="laugh">😂 <span>Laugh</span></button></div>
+  <div id="joystick" class="joystick" hidden><div id="joystick-knob"></div></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div id="profile-modal" class="overlay" hidden>
+   <div class="profile-card"><button id="profile-close" class="close-x" aria-label="Close">✕</button><span class="eyebrow">YOUR IDENTITY</span><h2>Look good, <em>feel good.</em></h2><p>Your style follows you into every season.</p><div id="profile-editor"></div><button class="primary-button" id="profile-done">Back to the house →</button></div>
+  </div>
+  <div id="entry-overlay" class="entry-overlay">
+   <div class="entry-card">
+    <span class="entry-pill"><span class="red-dot"></span> WELCOME TO THE ISLAND</span>
+    <div class="entry-brand">THE <b>HOUSE</b><span class="entry-spark">✳</span></div>
+    <h2>One house. One island.<br/><em>Your story starts here.</em></h2>
+    <p>One private beachfront house. Sandy shores, a pool, and 24 rooms to explore. Every housemate is a real player.</p>
+    <label for="entry-name">YOUR DISPLAY NAME</label><input id="entry-name" maxlength="18" placeholder="e.g. Lagos Legend" value="Lagos Legend"/>
+    <div class="wing-picker"><label for="entry-wing">HOUSEMATE BEDROOM WING</label><select id="entry-wing" aria-label="Choose bedroom wing"><option value="male">Men’s wing</option><option value="female">Women’s wing</option></select><small>Your choice is locked for this game session. Opposite-wing bedrooms and lounges are off-limits.</small></div>
+    <div class="entry-options">
+     <button id="join-viewer" class="entry-option featured"><span class="option-icon">◉</span><span><strong>Enter as a viewer</strong><small>Explore, follow, vote & change the game</small></span><b>→</b></button>
+     <button id="join-housemate" class="entry-option"><span class="option-icon">✳</span><span><strong>Become a housemate</strong><small>You are a real housemate. Control your avatar.</small></span><b>→</b></button>
+    </div>
+    <div class="entry-footer"><span>🇳🇬 MADE FOR THE CULTURE · NO BOTS</span><span>FREE TO PLAY · NO DOWNLOADS</span></div>
+   </div>
+  </div>
+ </main>
+ <script type="module" src="/js/app.js"></script>
+</body>
+</html>
