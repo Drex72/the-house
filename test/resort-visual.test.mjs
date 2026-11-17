@@ -32,3 +32,11 @@ test('pool visual refinement retains gameplay interaction contracts',()=>{
   assert.ok(ids.has(id),id+' must remain interactive');
  }
 });
+
+test('cabana shade is an open pergola and pool remains uncluttered',()=>{
+ const shapes=buildWorld(0).shapes;
+ const slats=shapes.filter(s=>s.type==='box'&&s.col==='#ebe2d3'&&s.x>17&&s.x<31&&s.z>18&&s.z<28);
+ const enclosed=shapes.filter(s=>s.type==='box'&&s.col==='#eee7da'&&s.w>=10&&s.d>=8&&s.y>4);
+ assert.ok(slats.length>=10,'cabana must use individual daylight-filtering roof slats');
+ assert.equal(enclosed.length,0,'solid white roof should not obscure the compound view');
+});
