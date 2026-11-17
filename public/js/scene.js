@@ -342,12 +342,12 @@ function buildWorld(floor=0){
   cyl(-21.98,.48,17.7,.53,.11,'#604533',20);
   cyl(-21.98,.24,17.7,.07,.42,'#604533',12);
   cyl(-21.98,.57,17.7,.17,.10,'#eee4cf',14);
-  resortShade(-16.8,18.4,2.65);
+  resortShade(-16.8,18.4,2.10);
   for(const x of [-30,30])for(const z of [15.2,25.1])palm(x,z,.85);
   // Beach is still walkable; shade & muted neutral loungers reinforce the
   // singular private-island environment, not another background building.
   for(const [x,z] of [[-13,19],[-4,26]]){
-   resortShade(x,z,2.15);
+   resortShade(x,z,x< -10?1.65:1.88);
    box(x,.13,z+2.1,1.03,.035,1.95,'#b3cfc6');
   }
   for(const x of [-14,-2])palm(x,19.7,.73);
@@ -364,15 +364,15 @@ function buildWorld(floor=0){
   for(const x of [4,8,12])cyl(x,.52,21,.65,.45,'#cca476');
   for(const x of [18.35,29.65])for(const z of [18.75,27.25])
    box(x,2.12,z,.22,4.16,.22,'#76533d');
-  box(24,4.29,23,12.0,.22,9.05,'#eee7da');
+  // Slatted pergola: daylight through the roof keeps the outdoor view open.
+  for(let n=-5;n<=5;n++)box(24+n*1.04,4.29,23,.88,.16,9.05,'#ebe2d3');
   for(const x of [18.45,29.55])box(x,4.18,23,.20,.28,9.15,'#785841');
+  for(const z of [18.75,27.25])box(24,4.18,z,11.7,.25,.20,'#785841');
   box(24,.45,23,5.5,.81,3.9,'#c9a887');
   for(const x of [20,28])cyl(x,1.2,18.4,.65,.72,'#b89ba3');
   // V7 island living: meaningful compound amenities, not background roads/buildings.
   // Pool lounge: floating rings, tiled ladder, changing/shower cubicle.
-  for(const [x,z,col] of [[-25.5,22,'#e9e3cf'],[-21.2,24.2,'#c7e4da']]){
-   for(let j=0;j<12;j++){const t=j*2*PI/12;ball(x+Math.cos(t)*.72,.32,z+Math.sin(t)*.72,.20,col,9,6,[1,.52,1]);}
-  }
+  // Open, uncluttered pool water. Avoid decorative float rings crowding the frame.
   for(const xx of [-18.75,-18.1]){
    cyl(xx,1.12,22.6,.09,1.8,'#e9e7de',10);
    for(const dz of [-.42,.42])box(xx,.32,22.6+dz,.09,.065,.83,'#f4f0e8');
@@ -870,8 +870,8 @@ void main(){
     // The signature resort camera frames water, deck, loungers and island
     // shoreline together. No whole-house cutaway or private room exposure.
     const phone=this.width<650;
-    const distance=(phone?18:14.2)*this.zoom,yaw=.88+this.orbit;
-    eye=[r.x+Math.sin(yaw)*distance,base+(phone?14.6:12.2)*this.zoom,
+    const distance=(phone?14.2:12.1)*this.zoom,yaw=.88+this.orbit;
+    eye=[r.x+Math.sin(yaw)*distance,base+(phone?11.9:10.1)*this.zoom,
          r.z+Math.cos(yaw)*distance*.68];
     to=[r.x-.25,base+.22,r.z+.10];
    }else{
