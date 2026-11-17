@@ -866,8 +866,18 @@ void main(){
    to=[0,base,floor===0?2:-12];
   }else{
    const r=ROOM_BY_ID[this.room]||room;
-   eye=[r.x+4.65*Math.sin(.9+this.orbit),base+2.83,r.z+5.4*Math.cos(.9+this.orbit)];
-   to=[r.x,base+1.35,r.z-1.4];
+   if(r.id==='pool'){
+    // The signature resort camera frames water, deck, loungers and island
+    // shoreline together. No whole-house cutaway or private room exposure.
+    const phone=this.width<650;
+    const distance=(phone?18:14.2)*this.zoom,yaw=.88+this.orbit;
+    eye=[r.x+Math.sin(yaw)*distance,base+(phone?14.6:12.2)*this.zoom,
+         r.z+Math.cos(yaw)*distance*.68];
+    to=[r.x-.25,base+.22,r.z+.10];
+   }else{
+    eye=[r.x+4.65*Math.sin(.9+this.orbit),base+2.83,r.z+5.4*Math.cos(.9+this.orbit)];
+    to=[r.x,base+1.35,r.z-1.4];
+   }
   }
   if(['room','director'].includes(this.cameraMode))eye=eye.map((v,i)=>mix(to[i],v,clamp(this.zoom,.6,1.15)));
   if(this.cameraMode==='firstperson'){this.camera.eye=eye;this.camera.target=to;}
