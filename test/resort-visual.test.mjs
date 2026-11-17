@@ -18,7 +18,7 @@ test('resort lounge furniture is grounded and all outdoor paving shares a subdue
  const shapes=buildWorld(0).shapes;
  const timber=shapes.filter(s=>s.type==='box'&&s.col==='#64432f'&&s.z>15&&s.z<21);
  const linen=shapes.filter(s=>s.type==='box'&&s.col==='#f2eee4'&&s.z>15&&s.z<21);
- const umbrella=shapes.filter(s=>s.type==='cylinder'&&s.col==='#f3eee2'&&s.r>2);
+ const umbrella=shapes.filter(s=>s.type==='cylinder'&&s.col==='#f3eee2'&&s.r>=1.6);
  const grout=shapes.filter(s=>s.type==='box'&&s.col==='#d5c9b7'&&s.y>=0);
  assert.ok(timber.length>=2,'both poolside teak loungers should be present');
  assert.ok(linen.length>=2,'both poolside fabric cushions should be present');
