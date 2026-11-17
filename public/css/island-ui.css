@@ -189,3 +189,17 @@
 .personal-need>div>i{height:100%;background:#78d0ac;display:block;border-radius:7px}
 .personal-need>b{width:30px;text-align:right}
 @media(max-width:800px){.room-chat{right:9px;left:9px;bottom:77px;width:auto;max-height:54dvh}.room-messages{max-height:22dvh}.scene-speech{max-width:112px;font-size:10px}.personal-stat strong{font-size:17px}}
+
+/* Resort visual system: quiet, readable overlays leave the playable scene first. */
+:root{--sea-ink:#253e42;--sand:#f6f1e7;--sun:#e6bf89;--panel:#26383def}
+.scene-label{background:#30343dcc;border:1px solid #fff6e4a6;border-radius:999px;
+ color:#fff8ec;box-shadow:0 4px 16px #171f2730;font-size:11px;font-weight:760;
+ padding:8px 12px}
+.scene-label.selected{background:#333844;color:#f8ede0;border-color:#e6c59b}
+.room-badge{background:#2f3c42de;border-color:#f3e9d275;border-radius:11px}
+.topbar{background:#263b42d9;border-color:#fff3da44}
+.quick-pill,.interact-action{box-shadow:0 7px 20px #142b3536!important}
+@media(max-width:800px){
+ .scene-label{padding:7px 10px;font-size:10px}
+ .room-badge{max-width:52vw}
+}

@@ -23,7 +23,7 @@ test('island surrounded by sea, shallows and sand, no roads or buildings outside
  assert.ok(mesh.shapes.some(s=>s.type==='box'&&s.w>=300&&s.d>=290&&s.col==='#177c99'));
  assert.ok(mesh.shapes.some(s=>s.type==='box'&&s.col==='#ecd199'));
  assert.ok(mesh.shapes.some(s=>s.type==='box'&&s.col==='#eef6dc'));
- assert.ok(mesh.shapes.some(s=>s.type==='cylinder'&&s.col==='#b17b55'));
+ assert.ok(mesh.shapes.some(s=>s.type==='cylinder'&&s.col==='#66513a'&&s.r<.15&&s.h>=3),'island still has physically supported beach parasols');
  assert.equal(mesh.shapes.some(s=>/road|bus|city/i.test(s.col||'')),false);
  const up=buildWorld(1);
  assert.ok(up.shapes.some(s=>s.type==='box'&&s.col==='#177c99'));

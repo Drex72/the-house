@@ -132,6 +132,24 @@ function buildWorld(floor=0){
   const throwPillow=at(-1.53,-.10);
   box(throwPillow[0],1.30,throwPillow[1],.54,.43,.18,'#f3d1b2',yaw+.15);
  };
+ // Two grounded teak/linen resort loungers; source collision objects remain unchanged.
+ const resortLounger=(x,z)=>{
+  const teak='#64432f';
+  box(x,.28,z,2.28,.20,3.25,teak);
+  box(x,.435,z,2.14,.11,3.05,'#c1b8a6');
+  box(x,.53,z,2.07,.12,2.93,'#f2eee4');
+  for(const dx of [-.94,.94])for(const dz of [-1.30,1.30])
+   box(x+dx,.15,z+dz,.12,.28,.15,'#4f3328');
+  box(x,.71,z-1.06,2.05,.24,.95,'#e7dfd2');
+  box(x,.85,z-1.36,1.53,.17,.38,'#faf8f1');
+  for(const side of [-1,1])box(x+side*1.10,.48,z,.075,.12,2.86,'#76523a');
+ };
+ const resortShade=(x,z,r=2.4)=>{
+  cyl(x,1.75,z,.082,3.4,'#66513a',14);
+  cyl(x,3.39,z,r,.22,'#f3eee2',32,.18);
+  cyl(x,3.57,z,.12,.17,'#d7c4a4',12);
+  cyl(x,.09,z,.31,.14,'#bcb3a5',16);
+ };
  const palm=(x,z,scale=1)=>{
   cyl(x,1.58*scale,z,.22*scale,3.0*scale,'#876246',13);
   for(let i=0;i<8;i++){const a=i*PI/4;
@@ -188,14 +206,18 @@ function buildWorld(floor=0){
   box(0,.27,29.7,8,.20,.45,'#c59c70');
  }
  for(const r of ROOMS.filter(r=>r.floor===floor)){
-  const outdoor=r.outdoor,baseColor=outdoor?'#eed7ac':(floor===1?'#eadbca':'#e5d2c4');
+  const outdoor=r.outdoor,baseColor=outdoor?'#e8dfd0':(floor===1?'#eadbca':'#e5d2c4');
   box(r.x,.01,r.z,15.75,.20,13.74,baseColor);
   // Large-scale stone tiles, sealed substrate and subtle border.
   if(!outdoor){
    for(let t=-6.3;t<7;t+=2.2)box(r.x+t,.119,r.z,.018,.006,13.1,'#d2c4ba');
    for(let t=-5.5;t<6;t+=2.2)box(r.x,.12,r.z+t,15.1,.006,.018,'#cbbcb5');
+  }else{
+   // Shared limestone paving: subtle joints, never raised collision geometry.
+   for(let t=-6.45;t<7;t+=2.3)box(r.x+t,.118,r.z,.017,.008,13.2,'#d5c9b7');
+   for(let t=-5.4;t<6;t+=2.3)box(r.x,.118,r.z+t,15.15,.008,.017,'#d5c9b7');
   }
-  for(const sign of [-1,1])box(r.x,.16,r.z+sign*6.64,15.0,.045,.08,r.color);
+  for(const sign of [-1,1])box(r.x,.16,r.z+sign*6.64,15.0,.045,.08,outdoor?'#e0d2bc':r.color);
   if(!outdoor){for(const x of [r.x-5.6,r.x+5.6])spotlight(x,r.z+4.1);}
  }
  for(const w of WALLS.filter(x=>x.floor===floor)){
@@ -308,24 +330,31 @@ function buildWorld(floor=0){
   box(8,.25,5.2,5.8,.15,1.2,'#a08c83');
   for(const x of [20.2,27.3])box(x,2.0,9,1.3,2.8,.17,'#eccab4');
   box(24,.16,8.8,5.5,.04,7.1,'#b582a5');plant(19,13);
-  // Outside: a sandy beach, a real swimming pool, palm grove and cabana.
-  box(-24,.08,23,13.4,.11,12.0,'#d8c3a2');
-  box(-24,.08,23,10.6,.11,8.0,'#f4e6d5');
-  box(-24,.10,23,9.85,.13,7.05,'#3384a3');
-  box(-24,.177,23,9.35,.055,6.65,'#4cc1d0');
-  for(const x of [-29,-19]){box(x,.39,17.6,2.3,.32,.92,'#f3e0c4');box(x,.71,17.3,2.2,.22,.45,'#f8dcc4');}
-  for(const x of [-30,30])for(const z of [15.2,25.1])palm(x,z, .85);
-  // Private beach: shade umbrellas, beach towels, sun loungers and surfboards.
-  for(const [x,z,c] of [[-13,19,'#f2b980'],[-4,26,'#fcf1cd']]){
-   cyl(x,1.34,z,.10,2.6,'#b17b55',12);
-   cyl(x,2.64,z,2.20,.16,c,24,0.22);
-   box(x,0.10,z+2.0,1.05,.04,2.0,'#72cbb7');
+  // Resort pool: recessed aqua basin, full stone coping, gradual entry steps.
+  box(-24,.085,23,14.0,.13,12.3,'#e8dfd0');
+  box(-24,.125,23,10.95,.15,8.16,'#c3c4b9');
+  box(-24,.154,23,9.92,.15,7.14,'#287b84');
+  box(-24,.218,23,9.45,.038,6.68,'#43b1ad'); // water gets shader caustics
+  for(const dx of [-5.22,5.22])box(-24+dx,.28,23,.47,.13,8.10,'#ede7dc');
+  for(const dz of [-3.84,3.84])box(-24,.28,23+dz,10.94,.13,.48,'#ede7dc');
+  for(let n=0;n<3;n++)box(-19.88-n*.40,.233-n*.015,22.15+n*.40,.38,.085,2.14,'#e3e4d8');
+  resortLounger(-29.0,17.8);resortLounger(-19.15,17.8);
+  cyl(-21.98,.48,17.7,.53,.11,'#604533',20);
+  cyl(-21.98,.24,17.7,.07,.42,'#604533',12);
+  cyl(-21.98,.57,17.7,.17,.10,'#eee4cf',14);
+  resortShade(-16.8,18.4,2.10);
+  for(const x of [-30,30])for(const z of [15.2,25.1])palm(x,z,.85);
+  // Beach is still walkable; shade & muted neutral loungers reinforce the
+  // singular private-island environment, not another background building.
+  for(const [x,z] of [[-13,19],[-4,26]]){
+   resortShade(x,z,x< -10?1.65:1.88);
+   box(x,.13,z+2.1,1.03,.035,1.95,'#b3cfc6');
   }
   for(const x of [-14,-2])palm(x,19.7,.73);
   for(const [x,z] of [[-11,27],[-5,20]]){
-   box(x,.19,z,2.7,.24,1.12,'#d7a678');
-   box(x,.36,z,2.4,.15,1.0,'#f5e4c7');
-   box(x,.5,z-.55,1.0,.30,.23,'#d18a7d');
+   box(x,.22,z,2.72,.23,1.19,'#74513b');
+   box(x,.40,z,2.51,.12,1.08,'#eae1d3');
+   ball(x,.54,z-.40,.34,'#f5efe4',14,8,[1,.3,.55]);
   }
   for(const x of [-3,0]){
    box(x,1.23,27.7,.18,2.4,.95,'#f5e9d0',.17);
@@ -333,15 +362,17 @@ function buildWorld(floor=0){
   }
   box(8,.45,27.1,11.0,.62,2.2,'#7a4d74');box(8,.79,27.1,10.5,.13,1.9,'#d99e55');
   for(const x of [4,8,12])cyl(x,.52,21,.65,.45,'#cca476');
-  for(const x of [18,30]){box(x,2.62,23,.34,5,.34,'#e9dcc7');}
-  box(24,4.25,23,13.0,.35,10.8,'#b67852');
-  box(24,.45,23,5.5,.81,3.9,'#e5af79');
+  for(const x of [18.35,29.65])for(const z of [18.75,27.25])
+   box(x,2.12,z,.22,4.16,.22,'#76533d');
+  // Slatted pergola: daylight through the roof keeps the outdoor view open.
+  for(let n=-5;n<=5;n++)box(24+n*1.04,4.29,23,.88,.16,9.05,'#ebe2d3');
+  for(const x of [18.45,29.55])box(x,4.18,23,.20,.28,9.15,'#785841');
+  for(const z of [18.75,27.25])box(24,4.18,z,11.7,.25,.20,'#785841');
+  box(24,.45,23,5.5,.81,3.9,'#c9a887');
   for(const x of [20,28])cyl(x,1.2,18.4,.65,.72,'#b89ba3');
   // V7 island living: meaningful compound amenities, not background roads/buildings.
   // Pool lounge: floating rings, tiled ladder, changing/shower cubicle.
-  for(const [x,z,col] of [[-25.5,22,'#e9b681'],[-21.2,24.2,'#f8d9b0']]){
-   for(let j=0;j<12;j++){const t=j*2*PI/12;ball(x+Math.cos(t)*.72,.32,z+Math.sin(t)*.72,.20,col,9,6,[1,.52,1]);}
-  }
+  // Open, uncluttered pool water. Avoid decorative float rings crowding the frame.
   for(const xx of [-18.75,-18.1]){
    cyl(xx,1.12,22.6,.09,1.8,'#e9e7de',10);
    for(const dz of [-.42,.42])box(xx,.32,22.6+dz,.09,.065,.83,'#f4f0e8');
@@ -687,9 +718,21 @@ void main(){
  float bounce=max(dot(normal,fill),0.0);
  vec3 viewDir=normalize(uEyePosition-vWorld);
  float spec=pow(max(dot(normal,normalize(key+viewDir)),0.0),32.0);
- float roughness=0.43;
- float ambientOcclusion=mix(0.85,1.0,vGround);
- vec3 tone=vColor*(0.62+0.45*diff+0.12*bounce)*ambientOcclusion + vec3(0.96,0.83,0.71)*spec*(0.1+0.14*(1.0-roughness));
+ float roughness=0.52;
+ float ambientOcclusion=mix(0.88,1.0,vGround);
+ vec3 tone=vColor*(0.65+0.40*diff+0.11*bounce)*ambientOcclusion + vec3(0.97,0.91,0.79)*spec*(0.09+0.13*(1.0-roughness));
+ // GPU-only, subtle travertine grain and moving pool-water caustics.
+ float terrace=float(vWorld.z>16.15&&vWorld.z<29.7&&abs(vWorld.x)<31.75
+   &&vWorld.y>0.105&&vWorld.y<0.15&&normal.y>0.92);
+ float grain=sin(vWorld.x*7.7+sin(vWorld.z*2.4))*cos(vWorld.z*6.3+sin(vWorld.x*1.8));
+ tone*=1.0+terrace*grain*0.015;
+ float poolSurface=float(vWorld.x>-29.0&&vWorld.x< -19.0
+   &&vWorld.z>19.6&&vWorld.z<26.5&&vWorld.y>0.21&&vWorld.y<0.25
+   &&normal.y>0.90&&vColor.g>0.60&&vColor.b>0.60);
+ float caustic=sin(vWorld.x*2.25+uTime*.72+sin(vWorld.z*1.4))
+               *sin(vWorld.z*2.65-uTime*.56);
+ tone+=poolSurface*(vec3(0.047,0.068,0.064)*caustic
+   +vec3(0.025,0.055,0.045)*pow(max(0.,caustic),5.));
  if(vOcean>.5){
   float wave=sin(vWorld.x*.31+uTime*1.3)*cos(vWorld.z*.24-uTime*.72);
   float sparkle=pow(max(0.,sin(vWorld.x*.32+uTime*.25)*cos(vWorld.z*.25+uTime*.18)),24.);
@@ -823,8 +866,18 @@ void main(){
    to=[0,base,floor===0?2:-12];
   }else{
    const r=ROOM_BY_ID[this.room]||room;
-   eye=[r.x+4.65*Math.sin(.9+this.orbit),base+2.83,r.z+5.4*Math.cos(.9+this.orbit)];
-   to=[r.x,base+1.35,r.z-1.4];
+   if(r.id==='pool'){
+    // The signature resort camera frames water, deck, loungers and island
+    // shoreline together. No whole-house cutaway or private room exposure.
+    const phone=this.width<650;
+    const distance=(phone?14.2:12.1)*this.zoom,yaw=.88+this.orbit;
+    eye=[r.x+Math.sin(yaw)*distance,base+(phone?11.9:10.1)*this.zoom,
+         r.z+Math.cos(yaw)*distance*.68];
+    to=[r.x-.25,base+.22,r.z+.10];
+   }else{
+    eye=[r.x+4.65*Math.sin(.9+this.orbit),base+2.83,r.z+5.4*Math.cos(.9+this.orbit)];
+    to=[r.x,base+1.35,r.z-1.4];
+   }
   }
   if(['room','director'].includes(this.cameraMode))eye=eye.map((v,i)=>mix(to[i],v,clamp(this.zoom,.6,1.15)));
   if(this.cameraMode==='firstperson'){this.camera.eye=eye;this.camera.target=to;}
