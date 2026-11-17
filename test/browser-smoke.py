@@ -146,6 +146,17 @@ with sync_playwright() as p:
     spectator.wait_for_timeout(1400)
     assert not spectator_errors, f'viewer browser errors: {spectator_errors}'
     spectator.screenshot(path=str(OUT/'compound-beach-games-1180x740.png'))
+    # Reference visual QA: use the real room-viewer control rather than
+    # fabricating a screenshot of a new scene.
+    spectator.locator('#quick-explore').click()
+    spectator.locator('[data-room="pool"]').click()
+    spectator.wait_for_timeout(1400)
+    assert not spectator_errors, f'pool-view browser errors: {spectator_errors}'
+    spectator.screenshot(path=str(OUT/'pool-terrace-1180x740.png'))
+    spectator.set_viewport_size({'width':390,'height':844})
+    spectator.wait_for_timeout(900)
+    spectator.screenshot(path=str(OUT/'pool-terrace-390x844.png'))
+    print('PASS pool terrace: room cameras at desktop and phone sizes')
     print('PASS viewer: downstairs-only overview, outdoor room camera, private needs hidden')
     spectator.close()
     browser.close()
